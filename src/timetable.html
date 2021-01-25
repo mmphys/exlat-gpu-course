@@ -31,14 +31,26 @@
     <section>
 
       <h1>GPU Programming</h1>
-      <p>Presenters:  Kevin Stratford, Rupert Nash<br/>
-      <a href="mailto:kevin@epcc.ed.ac.uk"> kevin@epcc.ed.ac.uk</a>,
-      <a href="mailto:r.nash@epcc.ed.ac.uk"</a> r.nash@epcc.ed.ac.uk</p>
+      <p>Nick Johnson<br/>
+      <a href="mailto:n.johnson@epcc.ed.ac.uk"> n.johnson@epcc.ed.ac.uk</a>
+      </p>
       <img class="plain" src = "../img/epcc_logo.png" alt = "EPCC Logo"/>
 
       <p style="font-size: 0.7em">
       <a href="https://epcced.github.io/archer-gpu-course/">
                https://epcced.github.io/archer-gpu-course/</a></p>
+
+    </section>
+
+    <section>
+
+      <h1>Disclaimer</h1>
+      <p>This is not an ARCHER course</p>
+      <p style="font-size: 0.7em">
+	  This course is based upon the ARCHER GPU course as developed by EPCC.</br>
+	  I have added some material on building CG-type solvers as developed by the ExLAT project.</br>
+	  There may be some residual mentions of ARCHER in the material that I have not removed, but these should not be construed as a link with the ARCHER project.</br>
+	  </p>
 
     </section>
 
@@ -73,31 +85,6 @@
 
     </section>
 
-    <!-- ARCHER Logos etc  -->
-    <section id="archer">
-      <img class="plain" src="../img/ARCHER_logo.png" alt = "ARCHER Logo"/>
-      <p><a href="http://www.archer.ac.uk">http://www.archer.ac.uk</a></p>
-    </section>
-
-    <section>
-    <h4>ARCHER is the UK National Supercomputer Service</h4>
-
-    <div class = "lblock">
-      <img width = "250" class = "plain" src = "../img/epsrc-highres.jpg"
-           alt = "EPSRC Logo" />
-      <img width="150" class = "plain" src = "../img/nerc-logo-large.jpg"
-           alt = "NERC Logo" />
-      <img width="250" class = "plain" src = "../img/epcc_logo.png"
-           alt = "EPCC Logo" />
-      <img width="250" class = "plain" src = "../img/cray-logo.png"
-           alt = "Cray Inc. Logo" />
-    </div>
-    <div class = "rblock">
-      <img class="plain" src="../img/archer_cabs.png"
-           alt = "Picture of ARCHER machine itself" />
-    </div>
-    </section>
-
     <!-- ACTUAL COURSE TIMETABLE -->
 
     <section>
@@ -128,54 +115,22 @@
     <h4>Timetable Day Two</h4>
 
     <dl style = "font-size: 70%">
-      <dt>10:00 Recap</a></dt>
-      <dt>10:10  <a href = "./opencl.html">OpenCL</a> and
-                 <a href = "./directives.html">OpenACC Directives</a>
-      <dt>11:00 Break
-      <dt>11:30 OpenCL and / or Directives
-                <a href = "#/exercise-location"> Exercises</a>  </dt>
-
-      <dt>13:00 Lunch </dt>
-      <dt> <br> </dt>
-      <dt> 14:00 Performance portability and
-                 <a href = "./kokkos.html">Kokkos</a>
-      <dt> 14:30 Exercise: Getting started with Kokkos patterns
-      <dt> 15:00 Break</dt>
-      <dt> 15:10 Kokkos memory management</dt>
-      <dt> 15:30 Memory management
-                <a href = "#exercise-location">exercises</a></dt>
-      <dt> 16:00 Close
+		<dt>10:00 Recap/Warmup</a></dt>
+		<dt>10:10 <a href = "./exlat.html">ExLAT</a> exercise introduction	</dt>
+		<dt>11:00 Break</dt>
+		<dt>11:20 ... ExLAT exercise and talks continued</dt>
+		<dt>13:00 Lunch </dt>
+		<dt> <br> </dt>
+		<dt>14:00  <a href = "./opencl.html">OpenCL</a> and <a href = "./directives.html">OpenACC Directives</a>        </dt>
+		<dt>15:00 Break</dt>
+		<dt>15:15 OpenCL and / or Directives <a href = "#/exercise-location"> Exercises</a>  </dt>
+		<dt> 16:00 Close
     </dl>
-    </section>
-
-    <section>
-
-    <h4>Timetable Day Three</h4>
-
-    <dl style = "font-size: 70%">
-      <dt>10:00 Hackathon introduction </a></dt>
-      <dt>10:10 Guest lecture from Alan Gray (NVIDIA) <br>
-          "CUDA 11: New Features and Beyond" </dt>
-      <dt>11:00 Break </dt>
-      <dt>11:30 Hackathon </dt>
-
-      <dt> 13:00 Lunch </dt>
-      <dt> 14:00 Hackathon </dt>
-      <dt> 15:00 Break</dt>
-      <dt> 15:20 Hackathon</dt>
-      <dt> 17:00 Close </dt>
-    </dl>
+	
+	
     </section>
 
     <!-- Local 'elf and Safety -->
-
-    <section>
-      <h4>Local Information</h4>
-      <ul style = "font-size: 80%">
-        <li> Please take care of your personal belongings.
-        <li> Bayes Centre Fire alarm test is 11:30 Thursdays.
-      </ul>
-    </section>
 
     <!-- Do not commit details to the repository, please...
          I suggest making appropriate local chnages on a per course
@@ -202,11 +157,6 @@
       <p style = "font-size: 60%" align = "left">
       <code>$ module load gcc cuda </code><br>
       <code>$ cd archer-gpu-course/exercises/cuda-intro/src_c</code></p>
-
-      <p style = "font-size: 80%" align = "left">
-      Or (CUDA Fortran):
-      <p style = "font-size: 60%" align = "left">
-      <code>$ module load gcc nvidia/compilers-20.5 </code><br>
 
       <p style = "font-size: 80%" align = "left">
       Edit the file (method of your choice):
