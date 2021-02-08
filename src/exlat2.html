@@ -1,0 +1,179 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<title>reveal.js</title>
+
+<link rel="stylesheet" href="../css/reveal.css">
+<link rel="stylesheet" href="../css/theme/white.css">
+<link rel="stylesheet" href="../css/local.css">
+
+<!-- Theme used for syntax highlighting of code -->
+<link rel="stylesheet" href="../lib/css/vs.css">
+
+<!-- Printing and PDF exports -->
+<script>
+var link = document.createElement( 'link' );
+link.rel = 'stylesheet';
+link.type = 'text/css';
+link.href = window.location.search.match( /print-pdf/gi ) ? '../css/print/pdf.css' : '../css/print/paper.css';
+document.getElementsByTagName( 'head' )[0].appendChild( link );
+</script>
+</head>
+
+<!-- Start of presentation --> 
+<body>
+<div class="reveal">
+<div class="slides">
+
+  <section>
+
+    <h1 style = "text-transform: none !important">ExaLAT</h1>
+    <!--
+    <p>Kevin Stratford</p>
+    <p> kevin@epcc.ed.ac.uk </p> -->
+    <br>
+    <p>Material by: Nick Johnson </p>
+    <img class = "plain" src ="../img/epcc_logo.png" alt = "EPCC Logo" />
+  </section>
+
+  <section>
+    <h3>Why dowe want to use >1 GPUs?</h3>
+
+    <ul>
+    <li> Massively Massively parallel performance </li>
+    <ul class = "inner">
+        <li> Uncommon to find GPU-enabled HPC machines with only a single GPU per node </li>
+		<li> Memory space can be limiting for larger problems, though less of a problem for newer GPUs</li>
+		<li> Time to science!</li>
+    </ul>
+    <li> More GPUs, more difficulties </li>
+    <ul class = "inner">
+       <li> Now need to think about how to do things across GPUs</li>
+       <li> What goes where</li>
+	   <li> What are the costs of moving data</li>
+	   <li> Synchronisation across devices?</li>
+	   <li> Do we require some extra, host-side, co-ordination?<li>
+    </ul>
+    </ul>
+  </section>
+
+  <section>
+    <h3>Why dowe want to use >1 GPUs?</h3>
+
+    <ul class="outer">
+    <li> Matrix-Vector </li>
+    <ul class = "inner">
+        <li> nBlocks = rows </li>
+		<li> nThreads/block = cols</li>
+		<li> Easy</li>
+    </ul>
+    <li> Now we need to split it up further. </li>
+    <ul class = "inner">
+       <li> Send half of matrix A to GPU 0 (first 16 rows)</li>
+       <li> Send the other half (second 16 rows) to GPU 1</li>
+	   <li> Send vector X to BOTH!</li>
+	   <li> Compute M.V on the half-sized matrixes (threads/block = 32, nBlocks=16)</li>
+	   <li> Sync on the host<li>
+	   <li> Copy back to a host vector with an offset.</li>
+    </ul>
+    </ul>
+  </section>
+
+
+	<section>
+	<h4> Enter OpenMP </h4>
+    <ul class="outer">
+    <li> Host-side parallelisation framework</li>
+    <ul class = "inner">
+        <li> Good OpenMP technique is a course in itself </li>
+		<li> We are sticking with the very very simplisitc case here</li>
+		<li> 1 OpenMP threads --> 1 CPU (core) --> 1 GPU</li>
+		<li> OpenMP generally associated with parallelising FOR loops</li>
+		<li> It can do other types, but we won't cover that here</li>
+    </ul>
+    <li> Lines denoted by #pragam omp </li>
+    <ul class = "inner">
+       <li> We need to emply a few tricks to get this to work correctly</li>
+       <li> There is a loop in our code denoted with "cuda_k"</li>
+	   <li> This is used as the device counter and we switch between GPUs with cuda_set_device()</li>
+	   <li> Each part of the OpenMP loop (cuda_k loop) runs in parallel</li>
+	   <li> So, you need to have your mainloop outside of this loop.<li>
+	   <li> </li>
+    </ul>
+    </ul>
+	
+	
+	</section>
+
+	<section>
+	<h4> Enter OpenMP </h4>
+
+	<p>
+    <pre class = "stretch"><code class = "cpp" data-trim>
+	initial_functions(); // r0 = b - Ax0 etc.
+	
+	mainloop{
+	
+	#pragma omp parallel (conditions)
+	for (cuda_k...)
+	cuda_set_device(cuda_k)
+	...
+		your code goes in here
+	...
+	}
+    </code></pre></p>
+	
+    <ul class="outer">	
+    <li> Lines denoted by #pragam omp </li>
+    <ul class = "inner">
+       <li> We need some synchronisation points</li>
+       <li> #pragma omp barrier</li>
+	   <li> The values in "conditions" matter</li>
+	   <li> Everything which must remain private to a single GPU go in there</li>
+	   <li> Everything else is shared<li>
+	   <li> What happens at the end?</li>
+	   <li> "shared" variables keep their value</li>
+	   <li> "private" variables dont! (we can make this happen but we don't need it here)</li>
+    </ul>
+    </ul>
+	
+	
+	</section>
+
+
+
+</div>
+</div>
+
+<!-- End of presentation -->
+
+<script src="../lib/js/head.min.js"></script>
+<script src="../js/reveal.js"></script>
+
+<script>
+// More info about config & dependencies:
+// - https://github.com/hakimel/reveal.js#configuration
+// - https://github.com/hakimel/reveal.js#dependencies
+Reveal.initialize({
+  controls: false,
+  slideNumber: true,
+  center: false,
+  math: { mathjax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js',
+          config: 'TeX-AMS_HTML-full'
+         // See http://docs.mathjax.org/en/latest/config-files.html
+        },
+  dependencies: [
+	{ src: '../plugin/markdown/marked.js' },
+	{ src: '../plugin/markdown/markdown.js' },
+	{ src: '../plugin/notes/notes.js', async: true },
+        { src: '../plugin/math/math.js', async: true},
+	{ src: '../plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } }
+		]
+});
+</script>
+
+</body>
+</html>

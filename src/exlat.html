@@ -45,15 +45,18 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
     <ul>
     <li> Massively parallel performance </li>
     <ul class = "inner">
-        <li> Good at BLASy type operations </li>
+        <li> Very good at BLASy type operations </li>
         <li> Established hardware available in many places</li>
-        <li> ...
-        <li> profit
+        <li> Established programming language with lots of examples, help etc. </li>
+        <li> Good suite of tools, compilers, profilers etc. </li>
+		<li> C, C++ and Fortran (plus others) supported by vendor </li>
     </ul>
-    <li> Why wouldn't you want GPUs </li>
+    <li> Why wouldn't you want to use CUDA </li>
     <ul class = "inner">
-       <li> CUDA-based programming a low but not zero bar to entry</li>
-       <li> Not "open" and not necessarily available on Intel/AMD hardware
+       <li> Low but not zero bar to entry</li>
+       <li> Not "open" and not necessarily available on Intel/AMD hardware</li>
+	   <li> For a small code, or a quick test of something, that low bar can be high for a new user</li>
+	   <li> Can be a bit "boiler plate"-y in places</li>   
     </ul>
     </ul>
   </section>
@@ -79,6 +82,7 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
        <li> You don't want to have to tweak code for each set of resources </li>
        <li> Multiple ways to do this</li>
 	   <li> ... of escalating complexity </li>
+	   <li> Having host code in a good shape, then making sure you have multi-block code in good shape on a single GPU helps a lot</li>
     </ul>
     </ul>
 
@@ -214,7 +218,7 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
     <ul class = "inner">
 	<li>Enter, your new best friend, AtomicAdd...</li>
 	<li>Forces the threads to behave sensibly by adding their component in order</li>
-	<li>Probably not the fastest method to do this, but it is a CUDA function, so likely to be as fast as possible
+	<li>Not the fastest method to do this, but it is a CUDA function, so likely to be as fast as possible</li>
     </ul>
 
     <p>
@@ -225,16 +229,97 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 	
 	</section>
 
-<!--  
+
 	<section>
-	Going parallel
+	<h4> Exercise time </h4>
+	<ul class=outer">
+	<li>You can find these exercise in the usual place, under exalat1</li>
+	<li>My full (ie with MV and V.V) implemented is in the solutions directory</li>
+	<li>Try the following pieces of exercise:</li>
+
+		
+	</ul>
 	
-	We now have two building blocks, matrix-vector and vector-vector (or vector transpose, or other vectory things)<br>
-	How do we make use of > 1 GPU?
+	<div class="lblock">
+    <ul class = "inner">
+	<li> 1.1 Create a vector dot product kernel (vector_vector) </li>
+	<li> 1.2 Create a matrix vector kernel (matrix_vector) </li>
+	<li> 2.1 Profile these kernels to see the effect of atomicAdd being called by all threads in a block adds</li>
+	<li> 2.2 Can you cut this down by doing it on a single thread?
 	
+   </ul>
+   </div>
+   
+	<div class="rblock">	
+	<ul class = "inner">
+	<li> 3.1 Add a finishing condition (sqrt(R) < 1e-5 ?)
+	<li> 4.1 Increase the size of your vectors and matrices until you fill the GPU
+	<li> 4.2 Compare the performance in terms of run-time for the kernels vs copying time for the data
+	<li> 5.1 Optimise my code by removing un-necessary copy-backs and re-profile
+	</ul>
+	
+    
+	</div>
+
+   
 	</section>
 
-  -->
+	<section>
+	<h4>Hints</h4>
+	My demo code in the slides for atomicAdd could be reframed to
+	
+	<p>
+    <pre class = "stretch"><code class = "cpp" data-trim>
+	v_idx = threadIdx.x;
+	if (v_idx == 0){
+		float sum = 0;
+		for (i = 0; i < THREADS_PER_BLOCK; i++){
+			sum += temp_array[v_idx];
+		}
+		atomicAdd(result, sum);
+	}
+    </code></pre></p>
+	</section>
+	
+	<section>	
+	<h4>Hints</h4>
+	I also do a horrible thing in that I use a point to scalar as the return method from a function
+	
+	<p>
+    <pre class = "stretch"><code class = "cpp" data-trim>
+	__global__ void function(float *A, float *B, float *scalar)
+    </code></pre></p>
+	
+	If you combine this with an atomicAdd, you could end up in trouble. Why?
+	
+	<p>
+    <pre class = "stretch"><code class = "cpp" data-trim>
+	__global__ void function(float *A, float *B, float *scalar)
+	...
+	atomicAdd(scalar, values[index]);
+	...
+    </code></pre></p>
+	</section>	
+	
+	<section>	
+	<h4>Hints</h4>
+	I do too many copies.
+
+    <ul class = "inner">
+	<li> Does the initialisation need to be done on the GPU? </li>
+	<li> Do we need vector B on the GPU? </li>
+	<li> Do we need to copy everything back to the host, at each step, for a single GPU? </li>
+	<li> If we are worried about space, can we abuse existing space to hold intermediate products? </li>
+	<li> Could we combine some steps? </li>
+	
+    </ul>
+
+	
+	
+	</section>	
+	
+
+  
 
 </div>
 </div>
