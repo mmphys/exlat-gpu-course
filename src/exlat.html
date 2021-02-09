@@ -40,12 +40,12 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
   </section>
 
   <section>
-    <h3>Why does ExaLAT care about GPUs?</h3>
+    <h3>Why should we be interested in GPUs?</h3>
 
     <ul>
     <li> Massively parallel performance </li>
     <ul class = "inner">
-        <li> Very good at BLASy type operations </li>
+        <li> Very good at BLAS-like operations </li>
         <li> Established hardware available in many places</li>
         <li> Established programming language with lots of examples, help etc. </li>
         <li> Good suite of tools, compilers, profilers etc. </li>
@@ -56,37 +56,51 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
        <li> Low but not zero bar to entry</li>
        <li> Not "open" and not necessarily available on Intel/AMD hardware</li>
 	   <li> For a small code, or a quick test of something, that low bar can be high for a new user</li>
-	   <li> Can be a bit "boiler plate"-y in places</li>   
+	   <li> Can be a bit "boiler plate" in places compared to, for example, directives</li>   
     </ul>
     </ul>
   </section>
 
   <section>
-    <h4> I'm not into lattice...  </h4>
+    <h4> Example Application: Conjugate Gradient  </h4>
 
     <ul>
-    <li> My view: </li>
-    <ul class = "inner">
-        <li> It's mostly CG</li>
-        <li> Really big CG</li>
-		<li> With more maths added on later </li>
-    </ul>
     <li> How to exploit the available resources: </li>
     <ul class = "inner">
-       <li> Make sure you can decompose problem across GPUs</li>
-       <li> Ideally, decomposable across threads </li>
-	   <li> Minimise halo swapping </li>
+       <li> Make sure you can decompose the problem across GPUs</li>
+       <li> Ideally, make it decomposable across blocks and threads </li>
+	   <li> Minimise any halo swapping operations</li>
     </ul>
-    <li> Ideal code can adapt to use N GPUs at runtime
+    <li> The ideal code can adapt to use N GPUs at runtime</li>
     <ul class = "inner">
-       <li> You don't want to have to tweak code for each set of resources </li>
+       <li> You don't want to have to tweak the code for each set of resources </li>
        <li> Multiple ways to do this</li>
 	   <li> ... of escalating complexity </li>
-	   <li> Having host code in a good shape, then making sure you have multi-block code in good shape on a single GPU helps a lot</li>
+	   <li> Having the host code in a good shape, then making sure you have a multi-block GPU code in good shape on a single GPU helps a lot!</li>
     </ul>
     </ul>
 
   </section>
+  
+  <section>
+  <h4> Example Application: Conjugate Gradient  </h4>
+
+  <ul>
+  <li> Today's exercises are based around building a conjugate gradient implementation. </li>
+  <ul class = "inner">
+    <li> What is CG?</li>
+    <li> Effectively an interative algorithm to find x given a system Ax = b </li>
+	<li> Some may be familiar with this algorithm and variations thereof </li>
+  </ul>
+  <li> We will look at the most basic version</li>
+  <li> This does not involve any preconditioners etc</li>
+  <li> A is a simple sqaure matrix with values between 0 and 1 on the leading diagonal</li>
+  <li> x is all zeros and b is all ones</li>
+  </ul>
+  
+  </section>
+  
+  
 
   <section>
     <h4> Overarching theme of today's exercises. </h4>
@@ -109,7 +123,7 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 	
 	</section>
 	
-	  <section>
+	<section>
     <h4> Overarching theme of today's exercises. </h4>
     <div class="lblock">
       <img class = "plain" src = "./conjgradfromwikipedia.svg"
@@ -191,13 +205,11 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 	
 	<section>
 	<h4> AtomicAdd </h4>
-	
 
     <ul class = "inner">
 	<li>What does the below do on the GPU?</li>
 	<li>How does each thread (recall they operate roughly in lockstep) know which value of temp it is reading</li>
 	<li>Worse how does any thread know when to write, or what to write?</li>
-	
     </ul>
 	
     <p>
@@ -217,14 +229,18 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 
     <ul class = "inner">
 	<li>Enter, your new best friend, AtomicAdd...</li>
-	<li>Forces the threads to behave sensibly by adding their component in order</li>
+	<li>Forces the threads to behave sensibly by adding their components in order</li>
 	<li>Not the fastest method to do this, but it is a CUDA function, so likely to be as fast as possible</li>
+	<li>Note that the implementation of this does NOT zero the value before starting!</li>
     </ul>
 
     <p>
     <pre class = "stretch"><code class = "cpp" data-trim>
-	v_idx = threadIdx.x;
-	atomicAdd(&temp, tempa[v_idx]);
+	function(..., float *result){
+	...
+	t_idx = threadIdx.x;
+	__shared__ int temp_array[THREADS_PER_BLOCK];
+	atomicAdd(result, temp_array[t_idx]);
     </code></pre></p>
 	
 	</section>
@@ -244,6 +260,7 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
     <ul class = "inner">
 	<li> 1.1 Create a vector dot product kernel (vector_vector) </li>
 	<li> 1.2 Create a matrix vector kernel (matrix_vector) </li>
+	<li> 1.3 Create the vector mins/add (factor) vector kernels </li>
 	<li> 2.1 Profile these kernels to see the effect of atomicAdd being called by all threads in a block adds</li>
 	<li> 2.2 Can you cut this down by doing it on a single thread?
 	
@@ -255,7 +272,7 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 	<li> 3.1 Add a finishing condition (sqrt(R) < 1e-5 ?)
 	<li> 4.1 Increase the size of your vectors and matrices until you fill the GPU
 	<li> 4.2 Compare the performance in terms of run-time for the kernels vs copying time for the data
-	<li> 5.1 Optimise my code by removing un-necessary copy-backs and re-profile
+	<li> 5.1 Optimise by removing un-necessary copy-backs and re-profile
 	</ul>
 	
     
