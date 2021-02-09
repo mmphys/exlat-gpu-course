@@ -115,14 +115,15 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
     <pre class = "stretch"><code class = "cpp" data-trim>
 	initial_functions(); // r0 = b - Ax0 etc.
 	
-	mainloop{
+	for (mainloop = 0; mainloop < ARRAY_SIZE; mainlopp++){
 	
-	#pragma omp parallel (conditions)
-	for (cuda_k...)
-	cuda_set_device(cuda_k)
-	...
-		your code goes in here
-	...
+		#pragma omp parallel default(shared) for(conditions)
+		for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++){
+		cuda_set_device(cuda_k)
+		...
+			your code goes in here
+		...
+		}
 	}
     </code></pre></p>
 	
@@ -143,7 +144,12 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 	
 	</section>
 
-
+<!--
+	<section>
+	<h4> Enter OpenMP </h4>
+	
+	</section>
+-->
 
 </div>
 </div>
