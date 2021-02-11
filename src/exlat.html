@@ -204,12 +204,13 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 	</section>
 	
 	<section>
-	<h4> AtomicAdd </h4>
+	<h4> Reductions </h4>
 
     <ul class = "inner">
 	<li>What does the below do on the GPU?</li>
 	<li>How does each thread (recall they operate roughly in lockstep) know which value of temp it is reading</li>
 	<li>Worse how does any thread know when to write, or what to write?</li>
+	<li>This is called a reduction in most parallel languages, vector tempa[] is reduced into scalar temp with a + operator</li>
     </ul>
 	
     <p>
