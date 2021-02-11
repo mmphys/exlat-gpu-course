@@ -30,20 +30,21 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 
   <section>
 
-    <h1 style = "text-transform: none !important">ExaLAT</h1>
+    <h1 style = "text-transform: none !important">Multi-GPU Methods</h1>
     <!--
     <p>Kevin Stratford</p>
     <p> kevin@epcc.ed.ac.uk </p> -->
     <br>
     <p>Material by: Nick Johnson </p>
-    <img class = "plain" src ="../img/epcc_logo.png" alt = "EPCC Logo" />
+    <img class = "plain" src ="../img/epcc_logo.png" alt = "EPCC Logo" /><br>
+	<img class = "plain" src ="../img/exalat-logo-sml.png" alt = "ExaLAT Logo" />
   </section>
 
   <section>
-    <h3>Why dowe want to use >1 GPUs?</h3>
+    <h3>Why would you want to use >1 GPUs?</h3>
 
     <ul>
-    <li> Massively Massively parallel performance </li>
+    <li> Massively (Massively) parallel performance </li>
     <ul class = "inner">
         <li> Uncommon to find GPU-enabled HPC machines with only a single GPU per node </li>
 		<li> Memory space can be limiting for larger problems, though less of a problem for newer GPUs</li>
@@ -51,89 +52,131 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
     </ul>
     <li> More GPUs, more difficulties </li>
     <ul class = "inner">
-       <li> Now need to think about how to do things across GPUs</li>
-       <li> What goes where</li>
-	   <li> What are the costs of moving data</li>
+       <li> You now need to think about how to do things across GPUs</li>
+       <li> What goes where: which GPU, which host?</li>
+	   <li> What are the costs of moving data versus replicating effort</li>
 	   <li> Synchronisation across devices?</li>
-	   <li> Do we require some extra, host-side, co-ordination?<li>
+	   <li> Do we require some extra, host-side, co-ordination?</li>
     </ul>
     </ul>
   </section>
 
   <section>
-    <h3>Why dowe want to use >1 GPUs?</h3>
-
+    <h3>A simple example</h3>
+	<div class="lblock">
     <ul class="outer">
-    <li> Matrix-Vector </li>
+    <li> Our traditional dense Matrix-Vector kernel </li>
     <ul class = "inner">
+	    <li> Send all of the matrix and all of the vector the single GPU, bring back all of the result vector </li>
         <li> nBlocks = rows </li>
 		<li> nThreads/block = cols</li>
-		<li> Easy</li>
+		<li> It's easy enough to visualise how this works across SMs (blocks)</li>
     </ul>
-    <li> Now we need to split it up further. </li>
+	</ul>
+	</div>
+	
+	<div class="rblock">
+	<ul class="outer">
+    <li> Now you need to split it up further</li>
     <ul class = "inner">
        <li> Send half of matrix A to GPU 0 (first 16 rows)</li>
        <li> Send the other half (second 16 rows) to GPU 1</li>
 	   <li> Send vector X to BOTH!</li>
 	   <li> Compute M.V on the half-sized matrixes (threads/block = 32, nBlocks=16)</li>
-	   <li> Sync on the host<li>
+	   <li> Synchronise on the host</li>
 	   <li> Copy back to a host vector with an offset.</li>
     </ul>
     </ul>
+	</div>
   </section>
 
 
 	<section>
-	<h4> Enter OpenMP </h4>
+	<h4> OpenMP on the host </h4>
     <ul class="outer">
     <li> Host-side parallelisation framework</li>
     <ul class = "inner">
-        <li> Good OpenMP technique is a course in itself </li>
-		<li> We are sticking with the very very simplisitc case here</li>
-		<li> 1 OpenMP threads --> 1 CPU (core) --> 1 GPU</li>
+	    <li> All parallelisation frameworks (MPI, OpenMP, pThreads etc) require some extra effort to use</li>
+        <li> Good OpenMP technique is a multi-day course in itself</li>
+		<li> We will stick with a very simple case here</li>
+		<li> 1 OpenMP thread --> 1 CPU (core) --> 1 GPU</li>
 		<li> OpenMP generally associated with parallelising FOR loops</li>
-		<li> It can do other types, but we won't cover that here</li>
     </ul>
-    <li> Lines denoted by #pragam omp </li>
+    <ul class = "inner">
+        <li> The general flow is: </li>
+		<li> A parallel region which surrounds our work and spawns N threads (I have forced this equal to N GPUs)</li>
+		<li> 1 OpenMP thread --> 1 CPU (core) --> 1 GPU</li>
+		<li> A number of parallel loops inside this region</li>
+		<li> Interspersed with some single threaded regions to construct host-side vectors, synchronisation etc.</li>
+    </ul>
+	
+    </ul>
+	</section>
+	
+	<section>
+	<h4>OpenMP</h4>
+	<li> Lines denoted by #pragam omp </li>
     <ul class = "inner">
        <li> We need to emply a few tricks to get this to work correctly</li>
-       <li> There is a loop in our code denoted with "cuda_k"</li>
+       <li> The parallel loops in our code loop over a variable denoted "cuda_k"</li>
+	   <li> 0 <= cuda_k <= N GPUs</li>
 	   <li> This is used as the device counter and we switch between GPUs with cuda_set_device()</li>
 	   <li> Each part of the OpenMP loop (cuda_k loop) runs in parallel</li>
-	   <li> So, you need to have your mainloop outside of this loop.<li>
+	   <li> So, you need to have your mainloop outside of this loop, but inside the parallel region.<li>
 	   <li> </li>
     </ul>
-    </ul>
+	</section>
 	
+	<section>
+	<h4> An example code </h4>
+    <p>
+    <pre class = "stretch"><code class = "cpp" data-trim>
+	#pragma omp parallel
+	{
+		while(mainloop < ARRAY_SIZE){
+		#pragma omp for
+		for (cuda_k...){
+			... code to be executed on BOTH GPUs
+		}
+		#pragma omp single
+		{
+			... code for a single CPU THREAD (compute Rs)
+		}
+		#pragma omp for
+		for (cuda_k...){
+			... code to be executed on BOTH GPUs
+		}
+		}// End of mainloop
+	} // End of parallel region
+    </code></pre></p>
 	
+
 	</section>
 
 	<section>
 	<h4> Enter OpenMP </h4>
 
 	<p>
-    <pre class = "stretch"><code class = "cpp" data-trim>
-	initial_functions(); // r0 = b - Ax0 etc.
+    <pre class = "stretch"><code class = "cpp" data-trim>	
+	#pragma parallel default(shared) private(variables) 
+
+	... 
 	
-	for (mainloop = 0; mainloop < ARRAY_SIZE; mainlopp++){
-	
-		#pragma omp parallel default(shared) for(conditions)
+	#pragma omp for 
 		for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++){
 		cuda_set_device(cuda_k)
 		...
-			your code goes in here
+			multi-GPU kernels, memcpy etc.
 		...
 		}
 	}
     </code></pre></p>
 	
     <ul class="outer">	
-    <li> Lines denoted by #pragam omp </li>
+    <li> private(variables) </li>
     <ul class = "inner">
-       <li> We need some synchronisation points</li>
-       <li> #pragma omp barrier</li>
-	   <li> The values in "conditions" matter</li>
-	   <li> Everything which must remain private to a single GPU go in there</li>
+		<li>Strictly, this denotes that those variables are private to each thread in the parallel region</li>
+	   <li> Everything which must remain private to a single GPU goes in this clause</li>
 	   <li> Everything else is shared<li>
 	   <li> What happens at the end?</li>
 	   <li> "shared" variables keep their value</li>
