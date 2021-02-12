@@ -6,7 +6,7 @@
 
 #SBATCH --job-name=exalatex2
 #SBATCH --gres=gpu:2
-#SBATCH --time=00:02:00
+#SBATCH --time=00:01:00
 #SBATCH --partition=gpu-cascade
 #SBATCH --qos=gpu
 
