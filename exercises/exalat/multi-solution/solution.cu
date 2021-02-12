@@ -378,7 +378,7 @@ int main(int argc, char *argv[]) {
    * The value of cuda_k will be 0 for a serial case so we get a single iteration of this loop
    * and ergo a single thread of execution.
    */
-#pragma omp parallel default(shared) private(deviceNum, prop, device_matrixA, device_vectorR, device_vectorB, device_vectorP, device_vectorX, device_vectorRnew, device_vectorPnew, device_vectorXnew, device_vectorAP, cuda_k, device_scalar)
+#pragma omp parallel default(shared) private(deviceNum, prop, device_matrixA, device_vectorR, device_vectorB, device_vectorP, device_vectorX, device_vectorRnew, device_vectorPnew, device_vectorXnew, device_vectorAP, cuda_k, device_scalar, i, j)
   {
     printf("Running with %d OpenMP threads\n", omp_get_num_threads());
     
@@ -387,9 +387,7 @@ int main(int argc, char *argv[]) {
      * This loop is serialized and allocated the memory on each GPU.
      * It could be parallelised, but probably not to much effect except at large scale.
      */
-#pragma omp for // assume parallelisation over cuda_k
-    for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++) {
-
+    cuda_k = omp_get_thread_num();
       deviceNum = cuda_devices[cuda_k];
       cudaSetDevice(deviceNum);
       cudaGetDeviceProperties(&prop, deviceNum);    
@@ -432,14 +430,8 @@ int main(int argc, char *argv[]) {
       cudaMalloc(&device_scalar, scalar_sz);
       checkCUDAError("Device vectorXnew allocation");
     
-    }
-
-#pragma omp for  
-    for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++) {
-    
-      deviceNum = cuda_devices[cuda_k];
-      cudaSetDevice(deviceNum);
-    
+#pragma omp barrier    
+   
 
       /*
        * This is the start of the initialisation step
@@ -502,10 +494,8 @@ int main(int argc, char *argv[]) {
       cudaDeviceSynchronize();
 
     
-
-    }
-    printf("Clear!\n");
-    
+  
+#pragma omp barrier    
 #pragma omp single
     {
       memcpy(vectorP, vectorR, vector_sz);
@@ -521,6 +511,10 @@ int main(int argc, char *argv[]) {
       printf("Initial Rs = %f\n", initial_rs);
       rsold = initial_rs;
       rsnew = rsold;
+#pragma omp flush(rsnew)
+#pragma omp flush(initial_rs)
+#pragma omp flush(rsold)
+      
 
     }
 
@@ -530,24 +524,14 @@ int main(int argc, char *argv[]) {
      */
 
 
-#pragma omp barrier
 
-  
 
     /*
      * This is the start of the primary loop. We need to use a while loop since OpenMP gets upset about non-parallel for loops.
      */
     while (mainloop < ARRAY_SIZE && sqrt(rsnew) > 1e-5){
-
-
-    
-
-
-#pragma omp for
-      for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++){
-	deviceNum = cuda_devices[cuda_k];
-	cudaSetDevice(deviceNum);
-
+   
+      
 	cudaMemcpy(device_vectorP, vectorP, vector_sz, cudaMemcpyHostToDevice);
 	cudaDeviceSynchronize();
 	checkCUDAError("Memcpy: D2H P");
@@ -573,9 +557,10 @@ int main(int argc, char *argv[]) {
 	cudaDeviceSynchronize();
 	cudaMemcpy(&scalar[cuda_k], device_scalar, scalar_sz, cudaMemcpyDeviceToHost);
 	checkCUDAError("Memcpy: D2H vector");
-      
-      }
-    
+
+#pragma omp barrier
+
+	
 #pragma omp single
       {
 	// float s_scalar = 0;
@@ -589,17 +574,12 @@ int main(int argc, char *argv[]) {
       
 	alpha = rsold / scalar[0];
 	//alpha = rsold / s_scalar;
+#pragma omp flush(alpha)
       
       }
 
-#pragma omp barrier
+#pragma omp barier
 
-
-
-#pragma omp for
-      for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++){
-	deviceNum = cuda_devices[cuda_k];
-	cudaSetDevice(deviceNum);
 
 	/*
 	 * Compute x_k+1 = x_k + alpha.*P_k
@@ -609,9 +589,9 @@ int main(int argc, char *argv[]) {
 	vector_add_factor<<<1, threadsPerBlock>>>(device_vectorX, device_vectorP, alpha, device_vectorXnew);
 	cudaDeviceSynchronize();
 	checkCUDAError("kernel invocation");
-	// cudaMemcpy(vectorXnew, device_vectorXnew, vector_sz, cudaMemcpyDeviceToHost);
-	// cudaDeviceSynchronize();    
-	// checkCUDAError("Memcpy: D2H Xnew");
+	cudaMemcpy(vectorXnew, device_vectorXnew, vector_sz, cudaMemcpyDeviceToHost);
+	cudaDeviceSynchronize();    
+	checkCUDAError("Memcpy: D2H Xnew");
 
 	/*
 	 * Compute R_k+1 = R_k - alpha.*(AP_k)
@@ -621,32 +601,13 @@ int main(int argc, char *argv[]) {
 	vector_minus_factor<<<1, threadsPerBlock>>>(device_vectorR, device_vectorAP, alpha, device_vectorRnew);
 	cudaDeviceSynchronize();
 	checkCUDAError("kernel invocation");
-      }
 
-  
-#pragma omp single
-      {
-	for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++){
-	  deviceNum = cuda_devices[cuda_k];
-	  cudaSetDevice(deviceNum);
+	cudaMemcpy(vectorRnew, device_vectorRnew, vector_sz, cudaMemcpyDeviceToHost);
+	cudaDeviceSynchronize();    
+	checkCUDAError("Memcpy: D2H Rnew");
 
-	  cudaMemcpy(vectorRnew, device_vectorRnew, vector_sz, cudaMemcpyDeviceToHost);
-	  cudaDeviceSynchronize();    
-	  checkCUDAError("Memcpy: D2H Rnew");
-	
-	}
-
-      }
 
 #pragma omp barrier
-
-
-#pragma omp for
-      for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++){
-	deviceNum = cuda_devices[cuda_k];
-	cudaSetDevice(deviceNum);
-      
-    
 	// Calculate Beta
 	// Rnew dot Rnew / R dot R
 	scalar[cuda_k] = 0;
@@ -655,30 +616,22 @@ int main(int argc, char *argv[]) {
 	vector_vector<<<1, threadsPerBlock>>>(device_vectorRnew, device_vectorRnew, device_scalar);    // Rnew dot Rnew
 	cudaDeviceSynchronize();
 	checkCUDAError("kernel invocation");
-	rsnew = 0;
 	cudaMemcpy(scalar+deviceNum, device_scalar, scalar_sz, cudaMemcpyDeviceToHost);
 
-      }
 #pragma omp barrier
+
 
 #pragma omp single
       {
 	rsnew = scalar[0];
 	beta = rsnew / rsold;
-	printf("Thread %d\t\tML: %d\t\tRsnew = %f\t\tBeta = %f\t\tAlpha = %f\n", omp_get_thread_num(), mainloop, rsnew, beta, alpha);
-	// rsnew = scalar[1];
-	// beta = rsnew / rsold;
-	// printf("Thread %d\t\tML: %d\t\tRsnew = %f\t\tBeta = %f\t\tAlpha = %f\n", omp_get_thread_num(), mainloop, rsnew, beta, alpha);
+#pragma omp flush(beta)
+#pragma omp flush(rsnew)
       }
       
-
-
-#pragma omp for
-      for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++){
-	deviceNum = cuda_devices[cuda_k];
-	cudaSetDevice(deviceNum);
       
-    
+#pragma omp barrier
+
 	// Make Pnew = Rnew + Beta P   
 	vector_add_factor<<<1, threadsPerBlock>>>(device_vectorRnew, device_vectorP, beta, device_vectorPnew);
 	cudaDeviceSynchronize();
@@ -686,13 +639,13 @@ int main(int argc, char *argv[]) {
 	cudaMemcpy(vectorPnew, device_vectorPnew, vector_sz, cudaMemcpyDeviceToHost);
 	cudaDeviceSynchronize();    
 	checkCUDAError("Memcpy: D2H Pnew");
-      }
 
+#pragma omp barrier
    
 #pragma omp single
       {
     
-  
+	printf("Thread %d\t\tML: %d\t\tRsnew = %f\t\tBeta = %f\t\tAlpha = %f\n", omp_get_thread_num(), mainloop, rsnew, beta, alpha);
 	/*
 	 * Set up for next iteration
 	 */
@@ -700,13 +653,11 @@ int main(int argc, char *argv[]) {
 	memcpy(vectorP, vectorPnew, vector_sz);
 	memcpy(vectorR, vectorRnew, vector_sz);
 	memcpy(vectorX, vectorXnew, vector_sz);
+#pragma omp flush(rsold)
       
       }
-
 #pragma omp barrier
-
-
-      
+    
       /*
        * Herein lies the end of the first iteration.
        */
@@ -725,10 +676,6 @@ int main(int argc, char *argv[]) {
     } // end of mainloop construct...  
 
 
-#pragma omp for
-    for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++){
-      deviceNum = cuda_devices[cuda_k];
-      cudaSetDevice(deviceNum);
 
     
       cudaFree(device_matrixA);
@@ -741,8 +688,6 @@ int main(int argc, char *argv[]) {
       cudaFree(device_vectorXnew);
       cudaFree(device_vectorAP);
       cudaFree(device_scalar);
-    
-    }
 
     
   }
