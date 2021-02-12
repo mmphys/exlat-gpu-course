@@ -28,110 +28,111 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 <div class="reveal">
 <div class="slides">
 
-  <section>
+	<section>
 
-    <h1 style = "text-transform: none !important">Multi-GPU Methods</h1>
-    <!--
-    <p>Kevin Stratford</p>
-    <p> kevin@epcc.ed.ac.uk </p> -->
-    <br>
-    <p>Material by: Nick Johnson </p>
-    <img class = "plain" src ="../img/epcc_logo.png" alt = "EPCC Logo" /><br>
+	<h1 style = "text-transform: none !important">Multi-GPU Methods</h1>
+	<!--
+	<p>Kevin Stratford</p>
+	<p> kevin@epcc.ed.ac.uk </p> -->
+	<br>
+	<p>Material by: Nick Johnson </p>
+	<img class = "plain" src ="../img/epcc_logo.png" alt = "EPCC Logo" /><br>
 	<img class = "plain" src ="../img/exalat-logo-sml.png" alt = "ExaLAT Logo" />
-  </section>
+	</section>
 
-  <section>
-    <h3>Why would you want to use >1 GPUs?</h3>
 
-    <ul>
-    <li> Massively (Massively) parallel performance </li>
-    <ul class = "inner">
-        <li> Uncommon to find GPU-enabled HPC machines with only a single GPU per node </li>
+	<section>
+	<h3>Why would you want to use >1 GPUs?</h3>
+	<ul>
+	<li> Massively (Massively) parallel performance </li>
+	<ul class = "inner">
+		<li> Uncommon to find GPU-enabled HPC machines with only a single GPU per node </li>
 		<li> Memory space can be limiting for larger problems, though less of a problem for newer GPUs</li>
 		<li> Time to science!</li>
-    </ul>
-    <li> More GPUs, more difficulties </li>
-    <ul class = "inner">
-       <li> You now need to think about how to do things across GPUs</li>
-       <li> What goes where: which GPU, which host?</li>
+	</ul>
+	<li> More GPUs, more difficulties </li>
+	<ul class = "inner">
+	   <li> You now need to think about how to do things across GPUs</li>
+	   <li> What goes where: which GPU, which host?</li>
 	   <li> What are the costs of moving data versus replicating effort</li>
 	   <li> Synchronisation across devices?</li>
 	   <li> Do we require some extra, host-side, co-ordination?</li>
-    </ul>
-    </ul>
-  </section>
+	</ul>
+	</ul>
+	</section>
 
-  <section>
-    <h3>A simple example</h3>
+
+	<section>
+	<h3>A simple example</h3>
 	<div class="lblock">
-    <ul class="outer">
-    <li> Our traditional dense Matrix-Vector kernel </li>
-    <ul class = "inner">
-	    <li> Send all of the matrix and all of the vector the single GPU, bring back all of the result vector </li>
-        <li> nBlocks = rows </li>
+	<ul class="outer">
+	<li> Our traditional dense Matrix-Vector kernel </li>
+	<ul class = "inner">
+		<li> Send all of the matrix and all of the vector the single GPU, bring back all of the result vector </li>
+		<li> nBlocks = rows </li>
 		<li> nThreads/block = cols</li>
 		<li> It's easy enough to visualise how this works across SMs (blocks)</li>
-    </ul>
+	</ul>
 	</ul>
 	</div>
-	
+
 	<div class="rblock">
 	<ul class="outer">
-    <li> Now you need to split it up further</li>
-    <ul class = "inner">
-       <li> Send half of matrix A to GPU 0 (first 16 rows)</li>
-       <li> Send the other half (second 16 rows) to GPU 1</li>
+	<li> Now you need to split it up further</li>
+	<ul class = "inner">
+		<li> Send half of matrix A to GPU 0 (first 16 rows)</li>
+		<li> Send the other half (second 16 rows) to GPU 1</li>
 	   <li> Send vector X to BOTH!</li>
 	   <li> Compute M.V on the half-sized matrixes (threads/block = 32, nBlocks=16)</li>
 	   <li> Synchronise on the host</li>
 	   <li> Copy back to a host vector with an offset.</li>
-    </ul>
-    </ul>
+	</ul>
+	</ul>
 	</div>
-  </section>
+	</section>
 
 
 	<section>
 	<h4> OpenMP on the host </h4>
-    <ul class="outer">
-    <li> Host-side parallelisation framework</li>
-    <ul class = "inner">
-	    <li> All parallelisation frameworks (MPI, OpenMP, pThreads etc) require some extra effort to use</li>
-        <li> Good OpenMP technique is a multi-day course in itself</li>
+	<ul class="outer">
+	<li> Host-side parallelisation framework</li>
+	<ul class = "inner">
+		<li> All parallelisation frameworks (MPI, OpenMP, pThreads etc) require some extra effort to use</li>
+		<li> Good OpenMP technique is a multi-day course in itself</li>
 		<li> We will stick with a very simple case here</li>
 		<li> 1 OpenMP thread --> 1 CPU (core) --> 1 GPU</li>
 		<li> OpenMP generally associated with parallelising FOR loops</li>
-    </ul>
-    <ul class = "inner">
-        <li> The general flow is: </li>
+	</ul>
+	<ul class = "inner">
+		<li> The general flow is: </li>
 		<li> A parallel region which surrounds our work and spawns N threads (I have forced this equal to N GPUs)</li>
 		<li> 1 OpenMP thread --> 1 CPU (core) --> 1 GPU</li>
 		<li> A number of parallel loops inside this region</li>
 		<li> Interspersed with some single threaded regions to construct host-side vectors, synchronisation etc.</li>
-    </ul>
-	
-    </ul>
+	</ul>	
+	</ul>
 	</section>
+	
 	
 	<section>
 	<h4>OpenMP</h4>
 	<li> Lines denoted by #pragam omp </li>
-    <ul class = "inner">
-       <li> We need to emply a few tricks to get this to work correctly</li>
-       <li> The parallel loops in our code loop over a variable denoted "cuda_k"</li>
+	<ul class = "inner">
+	   <li> We need to emply a few tricks to get this to work correctly</li>
+	   <li> The parallel loops in our code loop over a variable denoted "cuda_k"</li>
 	   <li> 0 <= cuda_k <= N GPUs</li>
 	   <li> This is used as the device counter and we switch between GPUs with cuda_set_device()</li>
 	   <li> Each part of the OpenMP loop (cuda_k loop) runs in parallel</li>
-	   <li> So, you need to have your mainloop outside of this loop, but inside the parallel region.<li>
-	   <li> </li>
-    </ul>
+	   <li> So, you need to have your mainloop outside of this loop, but inside the parallel region.</li>
+	</ul>
 	</section>
+	
 	
 	<section>
 	<h4> An example code </h4>
-    <p>
-    <pre class = "stretch"><code class = "cpp" data-trim>
-	#pragma omp parallel
+	<p>
+	<pre class = "stretch"><code class = "cpp" data-trim>
+	#pragma omp parallel shared() private() default()
 	{
 		while(mainloop < ARRAY_SIZE){
 		#pragma omp for
@@ -148,20 +149,20 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 		}
 		}// End of mainloop
 	} // End of parallel region
-    </code></pre></p>
-	
-
+	</code></pre></p>
 	</section>
 
+
+<!-- Needs to be multi-block HTML -->
 	<section>
 	<h4> Enter OpenMP </h4>
-
+	<!--
+	<div class="lblock">
 	<p>
-    <pre class = "stretch"><code class = "cpp" data-trim>	
+	<pre class = "stretch">
+	<code class = "cpp" data-trim>	
 	#pragma parallel default(shared) private(variables) 
-
 	... 
-	
 	#pragma omp for 
 		for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++){
 		cuda_set_device(cuda_k)
@@ -170,29 +171,46 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 		...
 		}
 	}
-    </code></pre></p>
+	</code>
+	</pre> 
 	
-    <ul class="outer">	
-    <li> private(variables) </li>
-    <ul class = "inner">
+	</p>
+	</div>
+	
+	<div class="rblock">
+	-->
+	<ul class="outer">	
+	<li>private(variables) </li>
+	<li>#pragma parallel default(shared) private(variables)</li>
+	<ul class = "inner">
 		<li>Strictly, this denotes that those variables are private to each thread in the parallel region</li>
-	   <li> Everything which must remain private to a single GPU goes in this clause</li>
-	   <li> Everything else is shared<li>
-	   <li> What happens at the end?</li>
-	   <li> "shared" variables keep their value</li>
-	   <li> "private" variables dont! (we can make this happen but we don't need it here)</li>
-    </ul>
-    </ul>
-	
-	
+		<li>Everything which must remain private to a single GPU goes in this clause</li>
+		<li>Everything else is shared<li>
+		<li>What happens at the end?</li>
+		<li>   "shared" variables keep their value</li>
+		<li>   "private" variables dont! (we can make this happen but we don't need it here)</li>
+	</ul>
+	</ul>
+	<!-- </div> -->
 	</section>
-
-<!--
+	
+	
 	<section>
-	<h4> Enter OpenMP </h4>
-	
-	</section>
--->
+	<h4> Multi-GPU exercise</h4>
+	<ul class="outer">	
+	<li> You will find this in the <a href = "timetable.html#exercise-location">usual place</a> under exercises/exalat/multi </li>
+	<ul class = "inner">
+		<li>Start by trying to implement the kernels as you did in the single-GPU exercise.</li>
+		<li>Then work on the first matrix vector operation (Ax).</li>
+		<li>Then work on implementing the main code as far as calculating the initial residual.</li>
+		<li>Then you can uncomment the rest of the loops and work through those.</li>
+		<li>I found it useful to print out the values of R, alpha, beta and mainloop on each iteration.</li>
+		<li>Compare with your values from the single-GPU case - they should be equal!</li>
+	</ul>
+	</ul>
+	</section>	
+
+
 
 </div>
 </div>
@@ -211,14 +229,14 @@ Reveal.initialize({
   slideNumber: true,
   center: false,
   math: { mathjax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js',
-          config: 'TeX-AMS_HTML-full'
-         // See http://docs.mathjax.org/en/latest/config-files.html
-        },
+		  config: 'TeX-AMS_HTML-full'
+		 // See http://docs.mathjax.org/en/latest/config-files.html
+		},
   dependencies: [
 	{ src: '../plugin/markdown/marked.js' },
 	{ src: '../plugin/markdown/markdown.js' },
 	{ src: '../plugin/notes/notes.js', async: true },
-        { src: '../plugin/math/math.js', async: true},
+		{ src: '../plugin/math/math.js', async: true},
 	{ src: '../plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } }
 		]
 });
