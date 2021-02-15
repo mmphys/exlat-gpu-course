@@ -1,0 +1,13 @@
+CUDA_VISIBLE_DEVICES set to 0
+  Device name: Tesla V100-SXM2-16GB
+Image size: 2048x2048
+ITERATIONS: 100
+Blocks: 8 1 1
+Threads per block: 256 1 1
+
+
+ ***TEST PASSED SUCCESSFULLY*** 
+
+
+GPU Time (Including Data Transfer): 0.111831s
+CPU Time                          : 0.531205s
