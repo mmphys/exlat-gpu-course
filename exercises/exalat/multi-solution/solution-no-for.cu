@@ -79,7 +79,7 @@ __global__ void vector_vector(float *vectorA, float *vectorB, float *resscalar) 
 
   if (t_idx == 0){
     float sum = 0;
-    for (int i = 0; i < THREADS_PER_BLOCK; i++){
+    for (int i = 0; i < blockDim.x; i++){
       sum += temp_array[i];
     }
     atomicAdd(resscalar, sum);
@@ -551,9 +551,9 @@ int main(int argc, char *argv[]) {
 	 */
 	scalar[cuda_k] = 0;
 	cudaMemcpy(device_scalar, &scalar[cuda_k], scalar_sz, cudaMemcpyHostToDevice);
-	cudaMemcpy(device_vectorAP, vectorAP, vector_sz, cudaMemcpyHostToDevice);
-	//vector_vector<<<1, threadsPerBlockover2>>>(device_vectorP+(deviceNum * v_offset), device_vectorAP, device_scalar); // P dot Ap - both vectors are 1 block long !
-	vector_vector<<<1, threadsPerBlock>>>(device_vectorP, device_vectorAP, device_scalar); // P dot Ap - both vectors are 1 block long !
+	//cudaMemcpy(device_vectorAP, vectorAP, vector_sz, cudaMemcpyHostToDevice);
+	vector_vector<<<1, threadsPerBlockover2>>>(device_vectorP+(deviceNum * v_offset), device_vectorAP, device_scalar); // P dot Ap - both vectors are 1 block long !
+	//vector_vector<<<1, threadsPerBlock>>>(device_vectorP, device_vectorAP, device_scalar); // P dot Ap - both vectors are 1 block long !
 	cudaDeviceSynchronize();
 	cudaMemcpy(&scalar[cuda_k], device_scalar, scalar_sz, cudaMemcpyDeviceToHost);
 	checkCUDAError("Memcpy: D2H vector");
@@ -563,17 +563,17 @@ int main(int argc, char *argv[]) {
 	
 #pragma omp single
       {
-	// float s_scalar = 0;
-	// for (i = 0; i < cuda_device_count; i++){
-	//   s_scalar += scalar[i];
-	// }
+	float s_scalar = 0;
+	for (i = 0; i < cuda_device_count; i++){
+	  s_scalar += scalar[i];
+	}
       
 	/*
 	 * Compute Alpha
 	 */
       
-	alpha = rsold / scalar[0];
-	//alpha = rsold / s_scalar;
+	//alpha = rsold / scalar[0];
+	alpha = rsold / s_scalar;
 #pragma omp flush(alpha)
       
       }
@@ -586,10 +586,10 @@ int main(int argc, char *argv[]) {
 	 * Store in Xnew
 	 */
 	cudaMemcpy(device_vectorX, vectorX, vector_sz, cudaMemcpyHostToDevice);
-	vector_add_factor<<<1, threadsPerBlock>>>(device_vectorX, device_vectorP, alpha, device_vectorXnew);
+	vector_add_factor<<<1, threadsPerBlockover2>>>(device_vectorX+(deviceNum * v_offset), device_vectorP+(deviceNum * v_offset), alpha, device_vectorXnew);
 	cudaDeviceSynchronize();
 	checkCUDAError("kernel invocation");
-	cudaMemcpy(vectorXnew, device_vectorXnew, vector_sz, cudaMemcpyDeviceToHost);
+	cudaMemcpy(vectorXnew+(deviceNum * v_offset), device_vectorXnew, vector_sz/cuda_device_count, cudaMemcpyDeviceToHost);
 	cudaDeviceSynchronize();    
 	checkCUDAError("Memcpy: D2H Xnew");
 
@@ -597,12 +597,12 @@ int main(int argc, char *argv[]) {
 	 * Compute R_k+1 = R_k - alpha.*(AP_k)
 	 * Store in Rnew
 	 */
-	cudaMemcpy(device_vectorR, vectorR, vector_sz, cudaMemcpyHostToDevice);
-	vector_minus_factor<<<1, threadsPerBlock>>>(device_vectorR, device_vectorAP, alpha, device_vectorRnew);
+	cudaMemcpy(device_vectorR, vectorR+(deviceNum * v_offset), vector_sz/cuda_device_count, cudaMemcpyHostToDevice);
+	vector_minus_factor<<<1, threadsPerBlockover2>>>(device_vectorR, device_vectorAP, alpha, device_vectorRnew);
 	cudaDeviceSynchronize();
 	checkCUDAError("kernel invocation");
 
-	cudaMemcpy(vectorRnew, device_vectorRnew, vector_sz, cudaMemcpyDeviceToHost);
+	cudaMemcpy(vectorRnew+(deviceNum * v_offset), device_vectorRnew, vector_sz/cuda_device_count, cudaMemcpyDeviceToHost);
 	cudaDeviceSynchronize();    
 	checkCUDAError("Memcpy: D2H Rnew");
 
@@ -613,7 +613,7 @@ int main(int argc, char *argv[]) {
 	scalar[cuda_k] = 0;
 	cudaMemcpy(device_scalar, &scalar[cuda_k], scalar_sz, cudaMemcpyHostToDevice);
 	cudaDeviceSynchronize();
-	vector_vector<<<1, threadsPerBlock>>>(device_vectorRnew, device_vectorRnew, device_scalar);    // Rnew dot Rnew
+	vector_vector<<<1, threadsPerBlockover2>>>(device_vectorRnew, device_vectorRnew, device_scalar);    // Rnew dot Rnew
 	cudaDeviceSynchronize();
 	checkCUDAError("kernel invocation");
 	cudaMemcpy(scalar+deviceNum, device_scalar, scalar_sz, cudaMemcpyDeviceToHost);
@@ -623,7 +623,7 @@ int main(int argc, char *argv[]) {
 
 #pragma omp single
       {
-	rsnew = scalar[0];
+	rsnew = scalar[0] + scalar[1];
 	beta = rsnew / rsold;
 #pragma omp flush(beta)
 #pragma omp flush(rsnew)
@@ -633,10 +633,10 @@ int main(int argc, char *argv[]) {
 #pragma omp barrier
 
 	// Make Pnew = Rnew + Beta P   
-	vector_add_factor<<<1, threadsPerBlock>>>(device_vectorRnew, device_vectorP, beta, device_vectorPnew);
+	vector_add_factor<<<1, threadsPerBlockover2>>>(device_vectorRnew, device_vectorP+(deviceNum * v_offset), beta, device_vectorPnew);
 	cudaDeviceSynchronize();
 	checkCUDAError("kernel invocation");
-	cudaMemcpy(vectorPnew, device_vectorPnew, vector_sz, cudaMemcpyDeviceToHost);
+	cudaMemcpy(vectorPnew+(deviceNum * v_offset), device_vectorPnew, vector_sz/cuda_device_count, cudaMemcpyDeviceToHost);
 	cudaDeviceSynchronize();    
 	checkCUDAError("Memcpy: D2H Pnew");
 
