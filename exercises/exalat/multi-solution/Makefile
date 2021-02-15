@@ -5,7 +5,7 @@
 MF= Makefile
 
 EXE= solution.exe
-SRC= solution.cu
+SRC= solution-no-for.cu
 
 ARCH=sm_35
 
