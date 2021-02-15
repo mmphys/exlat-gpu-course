@@ -1,3 +1,9 @@
+# Ignore files without extension
+# Ignore everything ... except a) files with extensions b) directories
+*
+!*.*
+!*/
+
 # ignore object files and output logs
 *.o
 *.out
@@ -5,4 +11,3 @@
 # Editor wreckage
 
 *~
-
