@@ -1,3 +1,7 @@
+# ignore object files and output logs
+*.o
+*.out
+
 # Editor wreckage
 
 *~

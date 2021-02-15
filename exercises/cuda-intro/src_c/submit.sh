@@ -4,7 +4,7 @@
 # Set the queue and the resources
 #
 
-#SBATCH --job-name=submit
+#SBATCH --job-name=Intro
 #SBATCH --gres=gpu:1
 #SBATCH --time=00:01:00
 #SBATCH --partition=gpu-cascade
