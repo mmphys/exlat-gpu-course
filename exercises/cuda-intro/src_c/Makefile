@@ -4,8 +4,8 @@
 
 MF= Makefile
 
-EXE= intro
-SRC= intro.cu
+EXE= intro intro_managed
+SRC= intro.cu intro_managed.cu
 
 ARCH=sm_60
 
@@ -24,7 +24,12 @@ OBJ=	$(SRC:.cu=.o)
 	$(CC) $(CFLAGS) -dc -c $<
 
 $(EXE):	$(OBJ) 
-	$(CC) $(CFLAGS) -o $@ $(OBJ) 
+
+intro: intro.o
+	$(CC) $(CFLAGS) -o $@ $@.o
+
+intro_managed: intro_managed.o
+	$(CC) $(CFLAGS) -o $@ $@.o 
 
 $(OBJ):	$(MF) 
 

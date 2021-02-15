@@ -5,9 +5,9 @@
 MF= Makefile
 CP= cp
 
-EXE= reverse
+EXE= reverse reduce
 
-SRC= reverse.cu
+SRC= reverse.cu reduce.cu
 
 ARCH=sm_60
 
@@ -19,14 +19,18 @@ CFLAGS= -O3 -arch=$(ARCH)
 
 OBJ=	$(SRC:.cu=.o)
 
-
 .cu.o:
 	$(CC) $(CFLAGS) -dc -c $<
 
 default: $(EXE)
 
+reverse: reverse.o
+	$(CC) $(CFLAGS) -o $@ $@.o
+
+reduce: reduce.o
+	$(CC) $(CFLAGS) -o $@ $@.o
+
 $(EXE):	$(OBJ) 
-	$(CC) $(CFLAGS) -o $@ $(OBJ) 
 
 $(OBJ):	$(SRC) $(MF) 
 
