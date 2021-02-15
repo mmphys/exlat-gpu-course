@@ -107,8 +107,7 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 		<li> The general flow is: </li>
 		<li> A parallel region which surrounds our work and spawns N threads (I have forced this equal to N GPUs)</li>
 		<li> 1 OpenMP thread --> 1 CPU (core) --> 1 GPU</li>
-		<li> A number of parallel loops inside this region</li>
-		<li> Interspersed with some single threaded regions to construct host-side vectors, synchronisation etc.</li>
+		<li> N threads executing code inside this region, in parallel with some short sections of serial execution</li>
 	</ul>	
 	</ul>
 	</section>
@@ -119,11 +118,9 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 	<li> Lines denoted by #pragam omp </li>
 	<ul class = "inner">
 	   <li> We need to emply a few tricks to get this to work correctly</li>
-	   <li> The parallel loops in our code loop over a variable denoted "cuda_k"</li>
-	   <li> 0 <= cuda_k <= N GPUs</li>
-	   <li> This is used as the device counter and we switch between GPUs with cuda_set_device()</li>
-	   <li> Each part of the OpenMP loop (cuda_k loop) runs in parallel</li>
-	   <li> So, you need to have your mainloop outside of this loop, but inside the parallel region.</li>
+	   <li> We switch between GPUs with cuda_set_device()</li>
+	   <li> Each OpenMP thread runs in parallel so we call cuda_set_device() with the thread number of our OpenMP thread to select a GPU</li>
+	   <li> We have our main loop inside the parallel region.</li>
 	</ul>
 	</section>
 	
@@ -135,18 +132,12 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 	#pragma omp parallel shared() private() default()
 	{
 		while(mainloop < ARRAY_SIZE){
-		#pragma omp for
-		for (cuda_k...){
-			... code to be executed on BOTH GPUs
-		}
+		...  some parallel execution of GPU kernel, copy etc
 		#pragma omp single
 		{
 			... code for a single CPU THREAD (compute Rs)
 		}
-		#pragma omp for
-		for (cuda_k...){
-			... code to be executed on BOTH GPUs
-		}
+		... more code to be executed on BOTH GPUs etc.
 		}// End of mainloop
 	} // End of parallel region
 	</code></pre></p>
@@ -162,14 +153,14 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 	<pre class = "stretch">
 	<code class = "cpp" data-trim>	
 	#pragma parallel default(shared) private(variables) 
+	{
 	... 
-	#pragma omp for 
-		for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++){
-		cuda_set_device(cuda_k)
-		...
-			multi-GPU kernels, memcpy etc.
-		...
-		}
+	cuda_set_device()
+	cudaMalloc()
+	...
+	multi-GPU kernels, memcpy etc.
+	...
+	cudaFree()
 	}
 	</code>
 	</pre> 
@@ -200,12 +191,12 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 	<ul class="outer">	
 	<li> You will find this in the <a href = "timetable.html#exercise-location">usual place</a> under exercises/exalat/multi </li>
 	<ul class = "inner">
-		<li>Start by trying to implement the kernels as you did in the single-GPU exercise.</li>
-		<li>Then work on the first matrix vector operation (Ax).</li>
-		<li>Then work on implementing the main code as far as calculating the initial residual.</li>
-		<li>Then you can uncomment the rest of the loops and work through those.</li>
-		<li>I found it useful to print out the values of R, alpha, beta and mainloop on each iteration.</li>
-		<li>Compare with your values from the single-GPU case - they should be equal!</li>
+	<li>Start by trying to implement the kernels as you did in the single-GPU exercise.</li>
+	<li>Then work on the first matrix vector operation (Ax).</li>
+	<li>Then work on implementing the main code as far as calculating the initial residual.</li>
+	<li>Then you can uncomment the rest of the loops and work through those.</li>
+	<li>I found it useful to print out the values of R, alpha, beta and mainloop on each iteration.</li>
+	<li>Compare with your values from the single-GPU case - they should be equal!</li>
 	</ul>
 	</ul>
 	</section>	
