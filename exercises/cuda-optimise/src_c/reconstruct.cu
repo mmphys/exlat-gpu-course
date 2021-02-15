@@ -57,9 +57,9 @@ int main(int argc, char *argv[])
 
 
 
-#define THREADSPERBLOCK 256
+#define THREADSPERBLOCK 64
 
-if ( N%THREADSPERBLOCK != 0 ){
+if ( N % THREADSPERBLOCK != 0 ){
     printf("Error: THREADSPERBLOCK must exactly divide N\n");
     exit(1);
  }
@@ -93,8 +93,8 @@ if ( N%THREADSPERBLOCK != 0 ){
 
 
   /* CUDA decomposition */
-    dim3 blocksPerGrid(N/THREADSPERBLOCK,1,1);
-    dim3 threadsPerBlock(THREADSPERBLOCK,1,1);
+    dim3 blocksPerGrid(N/THREADSPERBLOCK,N/THREADSPERBLOCK,1);
+    dim3 threadsPerBlock(THREADSPERBLOCK,THREADSPERBLOCK,1);
 
    printf("Blocks: %d %d %d\n",blocksPerGrid.x,blocksPerGrid.y,blocksPerGrid.z);
    printf("Threads per block: %d %d %d\n",threadsPerBlock.x,threadsPerBlock.y,threadsPerBlock.z);
@@ -111,22 +111,28 @@ if ( N%THREADSPERBLOCK != 0 ){
 
   /* run on GPU */
   for (i = 0; i < ITERATIONS; i++) {
+    /* Copy last iteration's output as input */
+    if( i )
+    {
+      if((0))
+      {
+	cudaMemcpy( d_input, d_output, memSize, cudaMemcpyDeviceToDevice);
+      }
+      else
+      {
+	float * fSwap = d_output;
+      	d_output = d_input;
+      	d_input = fSwap;
+      }
+    }
 
     /* run the kernel */
-    inverseEdgeDetect<<< blocksPerGrid, threadsPerBlock >>>((float (*)[N+2]) d_output, (float (*)[N+2]) d_input, (float (*)[N+2]) d_edge);
+    inverseEdgeDetect2D<<< blocksPerGrid, threadsPerBlock >>>((float (*)[N+2]) d_output, (float (*)[N+2]) d_input, (float (*)[N+2]) d_edge);
  
     cudaDeviceSynchronize();
-
-
-    /* copy the output data from device to host */
-    cudaMemcpy(output, d_output, memSize, cudaMemcpyDeviceToHost);
-
-    /* copy this same data from host to input buffer on device */
-    /*  ready for the next iteration */ 
-    cudaMemcpy( d_input, output, memSize, cudaMemcpyHostToDevice);
-
   }
 
+  cudaMemcpy(output, d_output, memSize, cudaMemcpyDeviceToHost);
 
   end_time_inc_data = get_current_time();
 

@@ -4,9 +4,11 @@
 !*.*
 !*/
 
-# ignore object files and output logs
+# ignore object files
 *.o
-*.out
+
+# ignore the output image of Edinburgh castle
+output.pgm
 
 # Editor wreckage
 
