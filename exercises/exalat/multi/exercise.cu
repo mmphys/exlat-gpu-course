@@ -1,7 +1,20 @@
 /*
  * Skeleton for Very Basic Linear Solver Development
+ * Multi-GPU Version
  *
  * Nick Johnson, EPCC && ExaLAT.
+ */
+
+
+/*
+ * Instructions
+ * Step 1 - Add the code for the relevant kernels (matrix vector, vector dot product, vector +/- vector etc.
+ * Step 2 - Copy Data to the Devices, thinking carefully about whether each device needs a copy of the complete data, or only part of it.
+ * Step 3 - Call the kernels to compute the initial residual
+ * Step 4 - Uncomment the main loop and call the necessary memcpy's, and insert the relevant kernels
+ * Step 5 - Check your answer by observing the output, it should match that of the single GPU example for an indentical input
+ *
+ * Please do not edit the OpenMP lines, unless you are experienced with OpenMP programming (or wish to spend a lot of time debugging!)
  */
 
 #include <stdio.h>
@@ -40,20 +53,25 @@ void deviceEnumerator(int *cuda_devices, int *cuda_device_count);
  */
 __global__ void matrix_vector(float *matrix, float *vector, float *resvector) {
 
-  // Step 1. Add this kernel (you can use the one from the single GPU exercise
+  /*
+   * Step 1 - Add the matrix vector kernel here
+   * Verify it works with any number of blocks and threads
+   */
 
 }
 
 /*
  * Vector Vector product (dot product)
- * input:  vectorB, pointer to a previously allocated vector
+ * input:  vectorA, pointer to a previously allocated vector
  * input:  vectorB, pointer to a previously allocated vector
  * output: resscalar, pointer to a previously allocated scalar which will contain the result
  */
 __global__ void vector_vector(float *vectorA, float *vectorB, float *resscalar) {
 
-    // Step 1. Add this kernel (you can use the one from the single GPU exercise
- 
+  /*
+   * Step 1 - Add the vector dor product kernel here
+   * Verify it works with any number of blocks and threads
+   */
 
 }
 
@@ -65,10 +83,10 @@ __global__ void vector_vector(float *vectorA, float *vectorB, float *resscalar) 
  */
 __global__ void vector_add(float *vectorA, float *vectorB, float *resvector) {
 
-  int v_idx;
-  v_idx = threadIdx.x + ((blockIdx.x) * blockDim.x); // vector index
-  resvector[v_idx] = vectorA[v_idx] + vectorB[v_idx];
-  
+  /*
+   * Step 1 - Add the vector add kernel here
+   * Verify it works with any number of blocks and threads
+   */  
 }
 
 /*
@@ -79,9 +97,10 @@ __global__ void vector_add(float *vectorA, float *vectorB, float *resvector) {
  */
 __global__ void vector_add_factor(float *vectorA, float *vectorB, float factor, float *resvector) {
 
-  int v_idx;
-  v_idx = threadIdx.x + ((blockIdx.x) * blockDim.x); // vector index
-  resvector[v_idx] = vectorA[v_idx] + (factor * vectorB[v_idx]);
+  /*
+   * Step 1 - Add the vector add factor kernel here
+   * Verify it works with any number of blocks and threads
+   */
   
 }
 
@@ -96,10 +115,10 @@ __global__ void vector_add_factor(float *vectorA, float *vectorB, float factor, 
  */
 __global__ void vector_minus(float *vectorA, float *vectorB, float *resvector) {
 
-  int v_idx;
-  v_idx = threadIdx.x + ((blockIdx.x) * blockDim.x); // vector index
-  resvector[v_idx] = vectorA[v_idx] - vectorB[v_idx];
-  
+  /*
+   * Step 1 - Add the vector minus kernel here
+   * Verify it works with any number of blocks and threads
+   */  
 }
 
 /*
@@ -110,14 +129,15 @@ __global__ void vector_minus(float *vectorA, float *vectorB, float *resvector) {
  */
 __global__ void vector_minus_factor(float *vectorA, float *vectorB, float factor, float *resvector) {
 
-  int v_idx;
-  v_idx = threadIdx.x + ((blockIdx.x) * blockDim.x); // vector index
-  resvector[v_idx] = vectorA[v_idx] - (factor * vectorB[v_idx]);
+  /*
+   * Step 1 - Add the vector minus factor kernel here
+   * Verify it works with any number of blocks and threads
+   */
   
 }
 
 
-int seedvectors(float *matrix){
+int seedmatrix(float *matrix){
 
   int i = 0;
   int j = 0;
@@ -133,7 +153,7 @@ int seedvectors(float *matrix){
     }
   }
 
-#if defined(DEBUG)
+
   for (j = 0; j < ARRAY_SIZE; j++){
     for (i = 0; i < ARRAY_SIZE; i++){
       if (matrix[j*ARRAY_SIZE +i] != 0){
@@ -143,7 +163,7 @@ int seedvectors(float *matrix){
     printf("\n");
   }
   printf("\n\n");
-#endif
+
 
   return 0;
 }
@@ -271,7 +291,7 @@ int main(int argc, char *argv[]) {
    * Calloc should push these to be 0, but using this method we can pick anything.
    * Having a non-zero initialiser for the output array can help spot problems if we never expect a 0 in the output
    */
-  seedvectors(matrixA);
+  seedmatrix(matrixA);
   for (j = 0; j < ARRAY_SIZE; j++){
     vectorP[j] = 0;
     vectorB[j] = 1.0;
@@ -322,15 +342,12 @@ int main(int argc, char *argv[]) {
 
 
 
-#if defined(DEBUG)
-  printf("Host Debug:\n");
   printf("numBlocks: %d\n", (NUM_BLOCKS/cuda_device_count));
   printf("threadsPerBlock: %d\n", threadsPerBlock);
   printf("threadsPerBlockover2: %d\n", threadsPerBlockover2);
   printf("v_offset: %d\n", v_offset);
   printf("m_offset: %d\n", m_offset);
   printf("\n\n");
-#endif
 
   /*
    * This tricky input guard combination allows the parallelisation code to live here when run in serial without compilation issues
@@ -343,32 +360,34 @@ int main(int argc, char *argv[]) {
  
 
   /*
-   * The start of the only parallel region
+   * The compiler ignores pragmas statements which it cannot parse, so this can live outside the guard
+   * The value of cuda_k will be 0 for a serial case so we get a single iteration of this loop
+   * and ergo a single thread of execution.
    */
-#pragma omp parallel default(shared) private(deviceNum, prop, device_matrixA, device_vectorR, device_vectorB, device_vectorP, device_vectorX, device_vectorRnew, device_vectorPnew, device_vectorXnew, device_vectorAP, cuda_k, device_scalar)
+#pragma omp parallel default(shared) private(deviceNum, prop, device_matrixA, device_vectorR, device_vectorB, device_vectorP, device_vectorX, device_vectorRnew, device_vectorPnew, device_vectorXnew, device_vectorAP, cuda_k, device_scalar, i, j)
   {
     printf("Running with %d OpenMP threads\n", omp_get_num_threads());
     
 
     /*
-     * This loop alloces the memory on each GPU.
+     * This loop is serialized and allocated the memory on each GPU.
+     * It could be parallelised, but probably not to much effect except at large scale.
      */
-#pragma omp for // assume parallelisation over cuda_k
-    for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++) {
-
+    cuda_k = omp_get_thread_num();
       deviceNum = cuda_devices[cuda_k];
       cudaSetDevice(deviceNum);
       cudaGetDeviceProperties(&prop, deviceNum);    
-      printf("Thread: %d\t\tDevice Num: %d\t\t Device name: %s\n", omp_get_thread_num(), deviceNum, prop.name);
+      //printf("Thread: %d\t\tDevice Num: %d\t\t Device name: %s\n", omp_get_thread_num(), deviceNum, prop.name);
       scalar[cuda_k] = 0;
-    
-      /*
+
+     /*
        * We save a slightly confusing case in the 1 GPU situation, but otherwise check our offsets
        */
       if (cuda_device_count > 1){
 	printf("Device = %d : v_offset = %d\n", deviceNum, v_offset*deviceNum);
 	printf("Device = %d : m_offset = %d\n", deviceNum, m_offset*deviceNum);
       }
+
 
     
       /*
@@ -398,82 +417,80 @@ int main(int argc, char *argv[]) {
       cudaMalloc(&device_scalar, scalar_sz);
       checkCUDAError("Device vectorXnew allocation");
     
-    }
-
-#pragma omp for  
-    for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++) {
-    
-      deviceNum = cuda_devices[cuda_k];
-      cudaSetDevice(deviceNum);
-    
+#pragma omp barrier    
+   
 
       /*
        * This is the start of the initialisation step
        * We must derive an initial R_0, compute Rs and set P = R_0
        */
 
-
-      // Step 2 - Ax
+    
       /*
        * Copy arrays and matrices to device(s)
+       * The offset arrangement helps with >1 GPU
        */
-      cudaMemcpy();
+      // Step 2 - ensure the following cudaMemcpy's place data in the right places, and think about the sizes of vectors
+      // The first HostToDevice and DeviceToHost are given to show examples of copying partial vectors/matrices
+      cudaMemcpy(device_matrixA, matrixA+(deviceNum * m_offset), matrix_sz/cuda_device_count, cudaMemcpyHostToDevice);
       checkCUDAError("Memcpy: H2D matrix");
-      cudaMemcpy();
+      cudaMemcpy(); // Vector X
       checkCUDAError("Memcpy: H2D vectorX");
 
       /*
-       * Compute the first step Ax and save in a device vector, device_vectorXnew, for example
-       * The copy back to the host with an offset
+       * Compute the first step Ax and save somewhere
        */
-      matrix_vector<<<>>>();
+      // Step 3 Call the following kernels with appropriate parameters
+      matrix_vector<<<nBlocks,threadsPerBlock>>>(); // Perform Xnew = AX
       cudaMemcpy(vectorXnew+(deviceNum * v_offset), device_vectorXnew, vector_sz/cuda_device_count, cudaMemcpyDeviceToHost);
       cudaDeviceSynchronize();
       checkCUDAError("kernel invocation");
 
       
 
-      // Step 2 - b-(Ax)
       /*
-       * Compute the second step b - (Ax) and put in r
+       * Compute the second step b - (Ax) and store in r
        */
-
-      /*
-       * Copy half of vector B to each GPU
-       */
-      cudaMemcpy();
-      checkCUDAError("Memcpy: H2D B");
+      cudaMemcpy(); // Copy b to each device
+      checkCUDAError("Memcpy: H2D Rnew");
       cudaDeviceSynchronize();
-      
-      vector_minus<<<>>>(); // Compute half on each GPU
-      checkCUDAError("Kernel: Rinitial");
+      vector_minus<<<>>>(); // Step 3 - think carefully about exactly how many threads are needed here!
+      checkCUDAError("Kernel: Rnew");
       cudaDeviceSynchronize();
       /*
        * Copy this back to the host
        */
-      cudaMemcpy(vectorR+(deviceNum * v_offset), device_vectorR, vector_sz/cuda_device_count, cudaMemcpyDeviceToHost);
+      // Step 2 - ensure the host has a complete copy of vector r
+      cudaMemcpy(); 
       cudaDeviceSynchronize();
       checkCUDAError("Memcpy: D2H Rnew");
       
-
-      // Set an initial value to scalar
+    
       scalar[cuda_k] = 0;
       cudaMemcpy(device_scalar, &scalar[cuda_k], scalar_sz, cudaMemcpyHostToDevice);
       checkCUDAError("Memcpy: H2D scalar");
       cudaDeviceSynchronize();
 
 
+      // Step 3 - computing the initial residual using a vector dot product, one half on each GPU
+      // Think carefully about the number of threads/GPU and the sizes of any vectors you supply
       vector_vector<<<>>>(); // Remember the vector is 1 block long!
       checkCUDAError("Kernel: vectorR (init)");
       cudaDeviceSynchronize();
 
+      // An example of copying back two parts of the scalar to the host
       cudaMemcpy(scalar+deviceNum, device_scalar, scalar_sz, cudaMemcpyDeviceToHost);
       checkCUDAError("Memcpy: D2H scalar (init)");
-      cudaDeviceSynchronize();   
+      cudaDeviceSynchronize();
 
-    }
-    printf("Initial Done\n");
     
+
+      /*
+       * This strange construct ensures that one host thread computes the initial residual from parts
+       * And then updates the variable "rsnew" on BOTH threads.
+       * With the flush statements, this would be a race condition
+       */
+#pragma omp barrier    
 #pragma omp single
     {
       memcpy(vectorP, vectorR, vector_sz);
@@ -482,9 +499,13 @@ int main(int argc, char *argv[]) {
       	s_scalar += scalar[i];
       }
       initial_rs = s_scalar;
-      printf("Initial Rs = %f\nExpected Value = 32.0\n", initial_rs);
+      printf("Initial Rs = %f\n", initial_rs);
       rsold = initial_rs;
       rsnew = rsold;
+#pragma omp flush(rsnew)
+#pragma omp flush(initial_rs)
+#pragma omp flush(rsold)
+      
 
     }
 
@@ -493,34 +514,29 @@ int main(int argc, char *argv[]) {
      * We have derived an initial R_0, computed Rs and set P = R_0
      */
 
+    
 
-    // Step 3 - the rest!
-  
+    // Step 4 - uncomment the below and try to complete the rest of the algorithm
+    // Use your single-GPU code as a guide
+    // As a hint, I print out the values of rsnew, alpha and beta each iteration so I can quickly compare
+
 
 //     /*
 //      * This is the start of the primary loop. We need to use a while loop since OpenMP gets upset about non-parallel for loops.
 //      */
 //     while (mainloop < ARRAY_SIZE && sqrt(rsnew) > 1e-5){
-
-
-    
-
-
-// #pragma omp for
-//       for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++){
-// 	deviceNum = cuda_devices[cuda_k];
-// 	cudaSetDevice(deviceNum);
-
-// 	cudaMemcpy(device_vectorP, vectorP, vector_sz, cudaMemcpyHostToDevice);
+   
+      
+//       cudaMemcpy(); // Push P to device
 // 	cudaDeviceSynchronize();
 // 	checkCUDAError("Memcpy: D2H P");
 
 // 	// Zero out device_vectorAP, may not be strictly needed
-// 	cudaMemcpy(device_vectorAP, vectorAP, vector_sz, cudaMemcpyHostToDevice);    
-// 	matrix_vector<<<>>>();
+// 	cudaMemcpy();    
+// 	matrix_vector<<<>>>(); // Compute AP and store in device_vectorAP
 // 	cudaDeviceSynchronize();
 // 	checkCUDAError("kernel invocation");
-// 	cudaMemcpy(vectorAP+(deviceNum * v_offset), device_vectorAP, vector_sz/cuda_device_count, cudaMemcpyDeviceToHost);
+// 	cudaMemcpy(vectorAP+(deviceNum * v_offset), device_vectorAP, vector_sz/cuda_device_count, cudaMemcpyDeviceToHost); // Keep a copy of the compete AP on the host - is it needed ?
 // 	cudaDeviceSynchronize();
 // 	checkCUDAError("kernel invocation");
 
@@ -530,109 +546,98 @@ int main(int argc, char *argv[]) {
 // 	 */
 // 	scalar[cuda_k] = 0;
 // 	cudaMemcpy(device_scalar, &scalar[cuda_k], scalar_sz, cudaMemcpyHostToDevice);
-// 	cudaMemcpy(device_vectorAP, vectorAP, vector_sz, cudaMemcpyHostToDevice);
-// 	vector_vector<<<>>>(); // P dot Ap - both vectors are 1 block long !
+// 	vector_vector<<<>>>(); // P dot Ap 
 // 	cudaDeviceSynchronize();
 // 	cudaMemcpy(&scalar[cuda_k], device_scalar, scalar_sz, cudaMemcpyDeviceToHost);
 // 	checkCUDAError("Memcpy: D2H vector");
-      
-//       }
-    
+
+// #pragma omp barrier
+
+	
 // #pragma omp single
 //       {
+// 	float s_scalar = 0;
+// 	for (i = 0; i < cuda_device_count; i++){
+// 	  s_scalar += scalar[i];
+// 	}
       
 // 	/*
 // 	 * Compute Alpha
 // 	 */
       
-// 	alpha = rsold / 1;
+// 	alpha = rsold / s_scalar;
+// #pragma omp flush(alpha)
       
 //       }
 
-// #pragma omp barrier
+// #pragma omp barier
 
-
-
-// #pragma omp for
-//       for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++){
-// 	deviceNum = cuda_devices[cuda_k];
-// 	cudaSetDevice(deviceNum);
 
 // 	/*
 // 	 * Compute x_k+1 = x_k + alpha.*P_k
 // 	 * Store in Xnew
 // 	 */
-
+//       cudaMemcpy(); // Push X to device?
 // 	vector_add_factor<<<>>>();
 // 	cudaDeviceSynchronize();
 // 	checkCUDAError("kernel invocation");
+// 	cudaMemcpy(); // Keep vectorXnew on the host updated with a full copy of Xnew
+// 	cudaDeviceSynchronize();    
+// 	checkCUDAError("Memcpy: D2H Xnew");
+
 // 	/*
 // 	 * Compute R_k+1 = R_k - alpha.*(AP_k)
 // 	 * Store in Rnew
 // 	 */
+// 	cudaMemcpy(); // What goes here?
 // 	vector_minus_factor<<<>>>();
 // 	cudaDeviceSynchronize();
 // 	checkCUDAError("kernel invocation");
-//       }
 
-  
-// #pragma omp single
-//       {
-// 	for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++){
-// 	  deviceNum = cuda_devices[cuda_k];
-// 	  cudaSetDevice(deviceNum);
+// 	cudaMemcpy(); // Keep Rnew on the host up to date
+// 	cudaDeviceSynchronize();    
+// 	checkCUDAError("Memcpy: D2H Rnew");
 
-// 	  cudaMemcpy(vectorRnew, device_vectorRnew, vector_sz, cudaMemcpyDeviceToHost);
-// 	  cudaDeviceSynchronize();    
-// 	  checkCUDAError("Memcpy: D2H Rnew");
-	
-// 	}
-
-//       }
 
 // #pragma omp barrier
-
-
-// #pragma omp for
-//       for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++){
-// 	deviceNum = cuda_devices[cuda_k];
-// 	cudaSetDevice(deviceNum);
-      
-    
 // 	// Calculate Beta
 // 	// Rnew dot Rnew / R dot R
 // 	scalar[cuda_k] = 0;
 // 	cudaMemcpy(device_scalar, &scalar[cuda_k], scalar_sz, cudaMemcpyHostToDevice);
 // 	cudaDeviceSynchronize();
-// 	vector_vector<<<>>>(); 
+// 	vector_vector<<<>>>();    // Rnew dot Rnew
+// 	cudaDeviceSynchronize();
+// 	checkCUDAError("kernel invocation");
+// 	cudaMemcpy(scalar+deviceNum, device_scalar, scalar_sz, cudaMemcpyDeviceToHost);
 
-//       }
 // #pragma omp barrier
+
 
 // #pragma omp single
 //       {
-// 	rsnew = 0;
+// 	rsnew = scalar[0] + scalar[1];
 // 	beta = rsnew / rsold;
-// 	printf("Thread %d\t\tML: %d\t\tRsnew = %f\t\tBeta = %f\t\tAlpha = %f\n", omp_get_thread_num(), mainloop, rsnew, beta, alpha);
+// #pragma omp flush(beta)
+// #pragma omp flush(rsnew)
 //       }
       
-
-
-// #pragma omp for
-//       for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++){
-// 	deviceNum = cuda_devices[cuda_k];
-// 	cudaSetDevice(deviceNum);
       
-    
+// #pragma omp barrier
+
 // 	// Make Pnew = Rnew + Beta P   
-// 	vector_add_factor<<<>>>();
-//       }
+//       vector_add_factor<<<>>>(); // Think carefully here about how much of vector P is on each GPU and set the pointer arg appropriately
+// 	cudaDeviceSynchronize();
+// 	checkCUDAError("kernel invocation");
+// 	cudaMemcpy(); // Pnew to host
+// 	cudaDeviceSynchronize();    
+// 	checkCUDAError("Memcpy: D2H Pnew");
 
+// #pragma omp barrier
    
 // #pragma omp single
 //       {
     
-  
+// 	printf("Thread %d\t\tML: %d\t\tRsnew = %f\t\tBeta = %f\t\tAlpha = %f\n", omp_get_thread_num(), mainloop, rsnew, beta, alpha);
 // 	/*
 // 	 * Set up for next iteration
 // 	 */
@@ -640,13 +645,11 @@ int main(int argc, char *argv[]) {
 // 	memcpy(vectorP, vectorPnew, vector_sz);
 // 	memcpy(vectorR, vectorRnew, vector_sz);
 // 	memcpy(vectorX, vectorXnew, vector_sz);
+// #pragma omp flush(rsold)
       
 //       }
-
 // #pragma omp barrier
-
-
-      
+    
 //       /*
 //        * Herein lies the end of the first iteration.
 //        */
@@ -665,11 +668,7 @@ int main(int argc, char *argv[]) {
 //     } // end of mainloop construct...  
 
 
-#pragma omp for
-    for (cuda_k = 0; cuda_k < cuda_device_count; cuda_k++){
-      deviceNum = cuda_devices[cuda_k];
-      cudaSetDevice(deviceNum);
-
+// Don't delete this part - or you'll leak memory on the device.
     
       cudaFree(device_matrixA);
       cudaFree(device_vectorR);
@@ -681,14 +680,12 @@ int main(int argc, char *argv[]) {
       cudaFree(device_vectorXnew);
       cudaFree(device_vectorAP);
       cudaFree(device_scalar);
-    
-    }
 
     
   }
 
 
-  
+  // This would be a good place to print out the final value of vectorX since it's what you set out to find!
     
     
 
