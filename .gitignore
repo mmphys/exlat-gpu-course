@@ -1,3 +1,6 @@
+# Ignore Apple stuff
+.DS_Store
+
 # Ignore files without extension
 # Ignore everything ... except a) files with extensions b) directories
 *
