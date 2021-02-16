@@ -103,8 +103,8 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 		<li> 1 OpenMP thread --> 1 CPU (core) --> 1 GPU</li>
 		<li> OpenMP generally associated with parallelising FOR loops</li>
 	</ul>
-	<ul class = "inner">
-		<li> The general flow is: </li>
+	<li> The general flow is: </li>
+	<ul class = "inner">	
 		<li> A parallel region which surrounds our work and spawns N threads (I have forced this equal to N GPUs)</li>
 		<li> 1 OpenMP thread --> 1 CPU (core) --> 1 GPU</li>
 		<li> N threads executing code inside this region, in parallel with some short sections of serial execution</li>
@@ -119,6 +119,7 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 	<ul class = "inner">
 	   <li> We need to emply a few tricks to get this to work correctly</li>
 	   <li> We switch between GPUs with cuda_set_device()</li>
+	   <li> We also need to think (very briefly) about streams</li>
 	   <li> Each OpenMP thread runs in parallel so we call cuda_set_device() with the thread number of our OpenMP thread to select a GPU</li>
 	   <li> We have our main loop inside the parallel region.</li>
 	</ul>
@@ -146,7 +147,7 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 
 <!-- Needs to be multi-block HTML -->
 	<section>
-	<h4> Enter OpenMP </h4>
+	<h4> private(variables)  </h4>
 	<!--
 	<div class="lblock">
 	<p>
@@ -171,12 +172,11 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 	<div class="rblock">
 	-->
 	<ul class="outer">	
-	<li>private(variables) </li>
 	<li>#pragma parallel default(shared) private(variables)</li>
 	<ul class = "inner">
 		<li>Strictly, this denotes that those variables are private to each thread in the parallel region</li>
 		<li>Everything which must remain private to a single GPU goes in this clause</li>
-		<li>Everything else is shared<li>
+		<li>Everything else is shared</li>
 		<li>What happens at the end?</li>
 		<li>   "shared" variables keep their value</li>
 		<li>   "private" variables dont! (we can make this happen but we don't need it here)</li>
@@ -191,10 +191,10 @@ document.getElementsByTagName( 'head' )[0].appendChild( link );
 	<ul class="outer">	
 	<li> You will find this in the <a href = "timetable.html#exercise-location">usual place</a> under exercises/exalat/multi </li>
 	<ul class = "inner">
-	<li>Start by trying to implement the kernels as you did in the single-GPU exercise.</li>
-	<li>Then work on the first matrix vector operation (Ax).</li>
-	<li>Then work on implementing the main code as far as calculating the initial residual.</li>
-	<li>Then you can uncomment the rest of the loops and work through those.</li>
+	<li>1. Start by trying to implement the kernels as you did in the single-GPU exercise.</li>
+	<li>2. Then work on the first matrix vector operation (Ax).</li>
+	<li>3. Then work on implementing the main code as far as calculating the initial residual.</li>
+	<li>4. Then you can uncomment the rest of the loops and work through those.</li>
 	<li>I found it useful to print out the values of R, alpha, beta and mainloop on each iteration.</li>
 	<li>Compare with your values from the single-GPU case - they should be equal!</li>
 	</ul>
