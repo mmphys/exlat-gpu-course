@@ -26,13 +26,13 @@ void checkCUDAError(const char*);
  * For the single block kernel, NUM_BLOCKS should be 1 and
  * THREADS_PER_BLOCK should be the array size
  */
-#define NUM_BLOCKS 32
 #define THREADS_PER_BLOCK 32
+/*#define NUM_BLOCKS 32*/
 
 /* Define max number of devices we expect per node.
  * It's currently 8 on Cirrus, so we keep to that for now. */
 
-#define MAX_DEVICES 8
+/*#define MAX_DEVICES 8*/
 
 
 /*
@@ -49,7 +49,27 @@ __global__ void vector_vector(float *vectorA, float *vectorB, float *result) {
    * STEP 1.1(a) Implement your vector dot product here.
    * STEP 1.1(b) Invoke the kernel from the main loop.
    */
+  __shared__ float sum;
+  __shared__ float sh[THREADS_PER_BLOCK];
+  sum = 0;
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  sh[threadIdx.x] = vectorA[idx] * vectorB[idx];
+  __syncthreads();
+  atomicAdd(&sum, sh[threadIdx.x]);
+  *result = sum;
+}
 
+void check_vector_vector(float *vectorA, float *vectorB, float *result)
+{
+  float check = 0;
+  for( int i = 0; i < ARRAY_SIZE; ++i )
+    check += vectorA[i] * vectorB[i];
+  if( check != *result )
+  {
+    printf( "check_vector_vector failed\n" );
+    exit(EXIT_FAILURE);
+  }
+  printf( "check_vector_vector success\n" );
 }
 
 /*
@@ -67,6 +87,34 @@ __global__ void matrix_vector(float *matrix, float *vector, float *result) {
    * STEP 1.2(b) Invoke the kernel from the main code below and
    * check the result. */
   
+  __shared__ float sum;
+  __shared__ float sh[THREADS_PER_BLOCK];
+  sum = 0;
+  int idxM = blockIdx.x * blockDim.x + threadIdx.x;
+  int idxV = threadIdx.x;
+  sh[idxV] = matrix[idxM] * vector[idxV];
+  __syncthreads();
+  atomicAdd(&sum, sh[idxV]);
+  result[blockIdx.x] = sum;
+}
+
+void check_matrix_vector(float *matrix, float *vector, float *result)
+{
+  float check[ARRAY_SIZE];
+  for( int i = 0; i < ARRAY_SIZE; ++i )
+
+  for( int i = 0; i < ARRAY_SIZE; ++i )
+  {
+    check[i] = 0;
+    for( int j = 0; j < ARRAY_SIZE; ++j )
+      check[i] += matrix[i * ARRAY_SIZE + j] * vector[j];
+    if( check[i] != result[i] )
+    {
+      printf( "check_matrix_vector failed on row %d\n", i );
+      exit(EXIT_FAILURE);
+    }
+  }
+  printf( "check_vector_vector success\n" );
 }
 
 /*
@@ -82,7 +130,10 @@ __global__ void vector_add(float *vectorA, float *vectorB, float *resvector) {
   /* STEP 1.3(a) Implement your vector addition here */
   /* STEP 1.3(b) Implement the kernel launch in the main code and check
    * your result for known input */
-  
+
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  resvector[idx] = vectorA[idx] + vectorB[idx];
+
 }
 
 /*
@@ -98,8 +149,23 @@ __global__ void vector_add_factor(float *vectorA, float *vectorB, float factor, 
 
   /* STEP 1.4(a) implement the kernel here, and check the kernel
    * invocation in the main code. */
+
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  resvector[idx] = vectorA[idx] + factor * vectorB[idx];
 }
 
+void check_vector_add_factor(float *vectorA, float *vectorB, float factor, float *resvector)
+{
+  for( int i = 0; i < ARRAY_SIZE; ++i )
+  {
+    if( resvector[i] != vectorA[i] + vectorB[i] * factor )
+    {
+      printf( "check_vector_add_factor failed element %d\n", i );
+      exit(EXIT_FAILURE);
+    }
+  }
+  printf( "check_vector_add_factor success\n" );
+}
 
 /*
  * Function which seeds a square matrix of ARRAY_SIZE x ARRAY_SIZE
@@ -166,6 +232,9 @@ int main(int argc, char *argv[]) {
    * End pre-amble
    */
 
+  cuda_device_count = 1;
+  printf("Set cuda_device_count to 1\n");
+
 
   /*
    * Begin main code
@@ -175,7 +244,7 @@ int main(int argc, char *argv[]) {
   /*
    * Some useful helper sizes and variables
    */
-  int j = 0;
+  /*int j = 0;*/
   size_t matrix_sz = ARRAY_SIZE * ARRAY_SIZE * sizeof(float);
   size_t vector_sz = ARRAY_SIZE * sizeof(float);
   size_t scalar_sz = 1 * sizeof(float);
@@ -230,7 +299,7 @@ int main(int argc, char *argv[]) {
    * Having a non-zero initialiser for the output array can help spot problems if we never expect a 0 in the output
    */
   seedmatrix(matrixA);
-  for (j = 0; j < ARRAY_SIZE; j++){
+  for (int j = 0; j < ARRAY_SIZE; j++){
     vectorP[j] = 0.0;
     vectorB[j] = 1.0;
     vectorX[j] = 2.0;
@@ -244,7 +313,7 @@ int main(int argc, char *argv[]) {
   
   /*
    * Create pointers to hold data on the device
-   */  
+   */
   float *device_matrixA = NULL;
   float *device_vectorR = NULL;
   float *device_vectorB = NULL;
@@ -266,11 +335,13 @@ int main(int argc, char *argv[]) {
    * nBlocks is split across the number of devices we have
    */
   dim3 threadsPerBlock(THREADS_PER_BLOCK);
-  dim3 nBlocks(NUM_BLOCKS/cuda_device_count);
+  /*dim3 nBlocks(NUM_BLOCKS/cuda_device_count);*/
+  dim3 vBlocks(ARRAY_SIZE / THREADS_PER_BLOCK);
+  dim3 mBlocks(ARRAY_SIZE * ARRAY_SIZE / THREADS_PER_BLOCK);
 
-
-  printf("numBlocks: %d\n", (NUM_BLOCKS/cuda_device_count));
-  printf("threadsPerBlock: %d\n", THREADS_PER_BLOCK);
+  printf("vBlocks: %d\n", vBlocks.x);
+  printf("mBlocks: %d\n", vBlocks.x);
+  printf("threadsPerBlock: %d\n", threadsPerBlock.x);
 
   /*
    * The compiler ignores pragmas statements which it cannot parse, so this can live outside the guard
@@ -335,11 +406,18 @@ int main(int argc, char *argv[]) {
      */
 
     /* STEP 1.2(b) Use matrix_vector<<<>>>(); */
-   
+
+  matrix_vector<<<mBlocks,threadsPerBlock>>>(device_matrixA, device_vectorX, device_vectorXnew);
+  cudaMemcpy(vectorXnew, device_vectorXnew, vector_sz, cudaMemcpyDeviceToHost);
+  checkCUDAError("kernel invocation");
+
+  check_matrix_vector(matrixA, vectorX, vectorXnew);
+
     /*
      * Compute the initial residual r_0 = b - (Ax_0) 
      */
     cudaMemcpy(device_vectorB, vectorB, vector_sz, cudaMemcpyHostToDevice);
+    vector_add_factor<<<vBlocks, threadsPerBlock>>>(device_vectorB, device_vectorXnew, -1., device_vectorR);
 
     /* STEP 1.4(b) use (with f = -1.0)  vector_add_factor<<<>>>(); */
 
@@ -347,7 +425,8 @@ int main(int argc, char *argv[]) {
      * Copy the initial residual vector back to the host
      */
     cudaMemcpy(vectorR, device_vectorR, vector_sz, cudaMemcpyDeviceToHost);
-    
+    check_vector_add_factor(vectorB, vectorXnew, -1., vectorR);
+
     /* Set p_0 = r_0, copy this initial r to device p host side only! */
     memcpy(vectorP, vectorR, vector_sz);
 
@@ -362,10 +441,15 @@ int main(int argc, char *argv[]) {
      */
     /* STEP 1.1(b) Implement the appropriate kernel configuration and
      * for the initial values given, check you have the correct result.
-     * Remember to copy result back to host.
+     * Remember to copy result back to host. */
 
-     vector_vector<<<>>>(); */
-    
+     vector_vector<<< vBlocks, threadsPerBlock >>>(device_vectorR, device_vectorR, device_scalar);
+     checkCUDAError("vector_vector<<< vBlocks, threadsPerBlock >>>");
+
+    cudaMemcpy(&scalar, device_scalar, scalar_sz, cudaMemcpyDeviceToHost);
+    checkCUDAError("Memcpy: D2H vector");
+
+     check_vector_vector(vectorR, vectorR, &scalar);
     
     float initial_rs = scalar;
     printf("Initial Rs = %f\n", initial_rs);
@@ -386,12 +470,17 @@ int main(int argc, char *argv[]) {
      * Once we have computed the value of (R_k+1)s, ie the updated residual, we can stop.
      */   
     int k = 0;
-    for (k = 0; k < ARRAY_SIZE; k++){
+    for (k = 0; abs(rsold) > 1e-5 && k < ARRAY_SIZE; k++){
     
       /*
        * Compute vector Ap_k and store, temporarily, in Pnew
        */
       /* STEP 1.2(b) Use matrix_vector<<<>>>(); */
+
+      cudaMemcpy(device_vectorP, vectorP, vector_sz, cudaMemcpyHostToDevice);
+      checkCUDAError("cudaMemcpy(device_vectorP, vectorP");
+      matrix_vector<<<mBlocks,threadsPerBlock>>>(device_matrixA, device_vectorP, device_vectorAP);
+      checkCUDAError("matrix_vector<<<mBlocks,threadsPerBlock>>>");
 
       /*
        * Compute Ap_k dot p_k
@@ -399,6 +488,11 @@ int main(int argc, char *argv[]) {
 
       /* STEP 1.1(b) vector_vector<<<>>>(); */
 
+    scalar = 0;
+    cudaMemcpy(device_scalar, &scalar, scalar_sz, cudaMemcpyHostToDevice);
+    vector_vector<<<vBlocks, threadsPerBlock>>>(device_vectorP, device_vectorAP, device_scalar);
+    cudaMemcpy(&scalar, device_scalar, scalar_sz, cudaMemcpyDeviceToHost);
+    checkCUDAError("vector_vector<<<vBlocks, threadsPerBlock>>>");
 
       /*
        * Compute Alpha
@@ -412,25 +506,47 @@ int main(int argc, char *argv[]) {
        */
       /* STEP 1.4(b) Use vector_add_factor<<<>>>(): */
 
+    cudaMemcpy(device_vectorX, vectorX, vector_sz, cudaMemcpyHostToDevice);
+    vector_add_factor<<<vBlocks, threadsPerBlock>>>(device_vectorX, device_vectorP, alpha, device_vectorXnew);
+    checkCUDAError("vector_add_factor<<<vBlocks, threadsPerBlock>>>");
+    cudaMemcpy(vectorXnew,device_vectorXnew,vector_sz,cudaMemcpyDeviceToHost);
+    checkCUDAError("cudaMemcpy vector_add_factor<<<vBlocks,threadsPerBlock");
+
       /*
        * Compute r_k+1 = r_k - alpha Ap_k
        * Store in Rnew
        */
       /* STEP 1.4(b) Use vector_add_factor<<<>>>(): */
-  
+
+    cudaMemcpy(device_vectorR, vectorR, vector_sz, cudaMemcpyHostToDevice);
+    vector_add_factor<<<vBlocks, threadsPerBlock>>>(device_vectorR, device_vectorAP, -alpha, device_vectorRnew);
+    checkCUDAError("vector_minus_factor<<<vBlocks, threadsPerBlock");
+    cudaMemcpy(vectorRnew,device_vectorRnew,vector_sz,cudaMemcpyDeviceToHost);
+    checkCUDAError("Memcpy: vector_minus_factor<<<vBlocks, threadsPerBlock");
 
       /* Calculate beta = r_k+1 r_k+1 / r_k r_k
        * Recall that we have the denominator r_k r_k as "rsold" */
 
       scalar = 0;
       /* STEP 1.1(b) vector_vector<<<>>>(); */
-      rsnew = 0;
+    cudaMemcpy(device_scalar, &scalar, scalar_sz, cudaMemcpyHostToDevice);
+    vector_vector<<<vBlocks, threadsPerBlock>>>(device_vectorRnew, device_vectorRnew, device_scalar);
+    checkCUDAError("vector_vector<<<vBlocks, threadsPerBlock");
+
+    cudaMemcpy(&rsnew, device_scalar, scalar_sz, cudaMemcpyDeviceToHost);
+    checkCUDAError("Get residual");
+    printf("  iteration %d, residual: %f\n", k, rsnew );
 
       beta = rsnew / rsold;
 
       /* Compute  p_k+1 = r_k+1 + beta p_k  and store in "Pnew" */
 
       /* STEP 1.4(b) vector_add_factor<<<>>>(); */
+
+    vector_add_factor<<<vBlocks, threadsPerBlock>>>(device_vectorRnew, device_vectorP, beta, device_vectorPnew);
+    checkCUDAError("vector_add_factor<<<vBlocks, threadsPerBlock>>>");
+    cudaMemcpy(vectorPnew,device_vectorPnew,vector_sz,cudaMemcpyDeviceToHost);
+    checkCUDAError("cudaMemcpy vector_add_factor<<<vBlocks, threadsPerBlock");
 
       /*
        * Set up for next iteration; copy host vectors.

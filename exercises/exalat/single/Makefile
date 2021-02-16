@@ -4,7 +4,7 @@
 
 MF= Makefile
 
-EXE= exercise.exe
+EXE= exercise
 SRC= exercise.cu
 
 ARCH=sm_35
