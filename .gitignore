@@ -1,11 +1,11 @@
-# Ignore Apple stuff
-.DS_Store
-
 # Ignore files without extension
 # Ignore everything ... except a) files with extensions b) directories
 *
 !*.*
 !*/
+
+# Ignore Apple stuff
+**/.DS_Store
 
 # ignore object files
 *.o
